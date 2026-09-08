@@ -46,4 +46,15 @@ return function(H)
     if a:match("^%-%-start=") then has_start = true end
   end
   H.falsy(has_start, "at = 0 is the beginning, not a seek")
+
+  -- Starting paused is for a caller whose picture is already moving: mpv takes
+  -- about a second to answer its socket, and unpaused it would spend that
+  -- second playing from where the caller *was*. The caller seeks it forward and
+  -- resumes, so the first sound heard is already in the right place.
+  local paused = audio.args({ mpv = "mpv", path = "/tmp/a.mp4", sock = "/tmp/s", paused = true })
+  H.ok(H.index_of(paused, "--pause=yes"), "paused is asked for when the caller wants it")
+  H.before(paused, "--pause=yes", "/tmp/a.mp4", "options precede the file, as ever")
+
+  local playing = audio.args({ mpv = "mpv", path = "/tmp/a.mp4", sock = "/tmp/s" })
+  H.falsy(H.index_of(playing, "--pause=yes"), "and never otherwise")
 end
