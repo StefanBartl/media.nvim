@@ -74,7 +74,16 @@ before you press one.
                         Render a grid of stills spread evenly over the
                         running time. Default: 3x4 at 1200px.
 
-:Media play [path]      Hand the file to an external player.
+:Media play [path]      Hand the file to an external player (the configured
+                        `player`, or the system default). Fire and forget.
+
+:Media window [path] [at=…]
+                        Play in a real mpv window: video and sound, drawn by
+                        mpv, no editor redraw in the loop. `at=` takes the
+                        same forms as `:Media frame` and is passed to mpv's
+                        `--start`. Always mpv; the window is stopped at |:qa|.
+                        Size and behaviour are the `window` table — see
+                        |media-configuration|.
 
 :Media cache clear      Delete every rendered still.
 
@@ -140,6 +149,14 @@ cache.dir                  nil means stdpath("cache")/media.nvim. The key
 
 player                     nil hands the file to the system's default
                            handler. A string or argv list overrides it.
+                           `:Media play` only.
+
+window.autofit,            The mpv window behind |media.play_window()| and
+window.ontop,              `:Media window`. `autofit` is `--autofit-larger`
+window.args                (default "80%x80%"); `ontop` keeps it above the
+                           terminal, on by default because a window spawned
+                           from a terminal cannot foreground itself on
+                           Windows; `args` is extra mpv flags, verbatim.
 
 The reasoning for every default is in lua/media/config/DEFAULTS.lua.
 
@@ -159,9 +176,11 @@ The reasoning for every default is in lua/media/config/DEFAULTS.lua.
     media.frame(path, { at = "10%", width = 800 }, function(png, err) end)
     media.frames(path, { count = 24, fps = 12 }, function(pngs, err) end)
     media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
-    media.play(path)          -- returns ok, err
+    media.play(path)          -- returns ok, err; hand off, not owned
     media.audio(path, { at = 0 }, function(handle, err) end)
     media.audio_available()   -- mpv on PATH (or bin.mpv configured)?
+    media.play_window(path, { at = 90 })  -- returns handle, err; a real mpv window
+    media.player_available()  -- same check, for the windowed player
     media.clear_cache()       -- returns the number of files removed
 <
 Every callback runs exactly once and on the main loop, so it may touch the
@@ -177,6 +196,18 @@ error when mpv is missing, just `handle == nil`. The handle:
 
 Built for a consumer that draws a picture against mpv's own clock instead of
 a Lua timer -- see lua/media/core/audio.lua for the reasoning.
+
+`media.play_window()` opens `bin.mpv` on `path` in a real window -- video and
+sound, drawn by mpv, no editor redraw in the loop -- and returns a handle:
+
+    handle.proc               the vim.system object, for the pid
+    handle.stop()             ends the window and its process tree; idempotent
+    handle.stopped()          whether stop() has been called
+
+`handle.stop()` runs for you at |:qa| even when the caller never calls it. For
+a consumer whose block-graphics playback is smooth (a fast terminal), this is
+an alternative rather than a replacement; where the editor's redraw is the
+ceiling it is the only thing that plays. See lua/media/core/player.lua.
 
 A probe record carries: `path`, `container`, `duration`, `size`, `bitrate`,
 `has_video`, `has_audio`, `has_cover`, `width`, `height`, `rotation`, `fps`,
@@ -196,27 +227,26 @@ value makes every tagged music file look like a one-frame film.
 ==============================================================================
 7. WHAT IT DOES NOT DO                                          *media-limits*
 
-media.nvim does not play video itself, and nothing in a terminal Neovim can
-draw real moving pictures: the only image protocol that reaches the terminal
-from inside Neovim carries a whole picture per write and has no notion of a
-frame, and Neovim repaints over anything drawn between its own redraws.
-`:Media play` hands the file to a real player, and that is the honest end of
-that command.
+media.nvim does not decode video itself, and nothing *inside* a terminal
+Neovim can draw real moving pictures: the only image protocol that reaches the
+terminal from inside Neovim carries a whole picture per write and has no
+notion of a frame, and Neovim repaints over anything drawn between its own
+redraws.
 
-What it does provide, for a consumer able to draw block graphics into a
-buffer: `media.frames()` for a decoded run and `media.audio()` for a real
-clock to draw it against. hover.nvim's played video hover is exactly that
-consumer: hover.nvim draws a decoded run as block graphics, which is
-text and therefore survives every redraw.
+There are two honest answers. `media.frames()` + `media.audio()` feed a
+consumer that draws block graphics into a buffer (hover.nvim's video hover):
+text, so it survives every redraw. It is smooth on a fast terminal; where the
+editor's own redraw is the bottleneck it is a slideshow, and tuning the paint
+does not change that -- the picture is the redraw.
 
-On Windows the player's window opens behind the terminal: Windows grants
-focus only to the process owning the foreground window, and inside a
-terminal that is the terminal host, not nvim.exe.
+`media.play_window()` / `:Media window` is the other: a real mpv window, drawn
+by mpv with no editor redraw in the loop. `:Media play` is the third and least
+owned -- hand the file to whatever the system opens it with.
 
-hover.nvim moves that line as far as it goes from inside the editor: it
-asks for a run of stills through |media-api| and paints them as coloured
-blocks, with sound from an mpv this plugin drives over its JSON IPC socket.
-See its docs/FEATURES/VIDEO.md.
+On Windows a window started from a terminal Neovim opens behind the terminal:
+Windows grants focus only to the process owning the foreground window, and
+inside a terminal that is the terminal host, not nvim.exe. `:Media window`
+passes `--ontop` so it stays visible regardless.
 
 ==============================================================================
 8. HEALTH                                                       *media-health*
@@ -225,9 +255,10 @@ See its docs/FEATURES/VIDEO.md.
     :checkhealth media
 <
 Verifies both binaries, reports ffmpeg's version, checks that the cache
-directory is writable, and reports whether mpv is found for media.audio() --
-its absence is informational, never an error, because a played run without
-it is simply silent, exactly as before that feature existed. The cache check
+directory is writable, and reports whether mpv is found -- for media.audio()
+and media.play_window(). Its absence is informational, never an error: a
+played run without it is simply silent and `:Media window` cannot open,
+exactly as before those features existed. The cache check
 exists because its own failure is silent otherwise: a read-only cache
 directory produces "no frame was written" from a renderer that ran
 perfectly.

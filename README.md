@@ -117,8 +117,17 @@ What does move the line is a consumer that draws *text*.
 [hover.nvim](https://github.com/StefanBartl/hover.nvim) asks for a run of stills
 through `media.frames()` and paints them as coloured blocks — which collide with
 no graphics protocol and survive every redraw — with sound from the mpv this
-plugin drives over its JSON IPC socket. `:Media play` remains the other honest
-answer: hand the file to a real player.
+plugin drives over its JSON IPC socket. It is smooth on a fast terminal; where
+the editor's own redraw is the bottleneck (Windows/WezTerm was measured at about
+one repaint a second, whichever way the paint was written) it is a slideshow,
+and no amount of tuning the paint changes that — the picture *is* the redraw.
+
+For that case there is `media.play_window()` (`:Media window`): a real mpv
+window, opened on the file at a given offset and stopped again by a handle the
+caller holds. mpv decodes, scales, syncs the sound and draws with the GPU, with
+no editor redraw in the loop — `hover.nvim` uses it for the `<CR>` in a video
+hover. `:Media play` is the third answer, and the least owned: hand the file to
+whatever the user configured, or to the system's default handler.
 
 ---
 
@@ -210,6 +219,14 @@ Then the picture:
 :Media sheet rows=4 cols=5    " the whole file as a grid
 ```
 
+And to actually watch it:
+
+```vim
+:Media window                 " a real mpv window, from the start
+:Media window at=90           " …or ninety seconds in
+:Media play                   " …or hand it to the system's player
+```
+
 Verify your setup any time with:
 
 ```vim
@@ -227,6 +244,7 @@ Verify your setup any time with:
 | `<leader>Ms` | normal | contact sheet |
 | `<leader>Mo` | normal | play in an external player |
 | `:Media [path]` | command | the same description, by name |
+| `:Media window [path] [at=]` | command | play in a real mpv window, from `at` |
 | `:Media cache clear` | command | throw the rendered stills away |
 
 The full set is the [bindings cheatsheet](docs/BINDINGS.md).
@@ -255,10 +273,13 @@ media.frame(path, { at = "10%", width = 800 }, function(png, err)
 end)
 
 media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
-media.play(path)
+media.play(path)                                                     -- hand off to the configured / system player
 
 media.frames(path, { count = 24, fps = 12 }, function(pngs, err) end)  -- a run, for block-graphics playback
 media.audio(path, { at = 0 }, function(handle, err) end)              -- sound for that run — see media.audio_available()
+
+local handle = media.play_window(path, { at = 90 })                  -- a real mpv window; see media.player_available()
+-- handle.stop()  -- ends the window and its process tree; idempotent, and run for you at :qa
 ```
 
 Every callback runs exactly once and on the main loop, so it may touch the

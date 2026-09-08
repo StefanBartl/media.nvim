@@ -11,6 +11,7 @@ require("media").setup({
   sheet = { rows = 3, cols = 4, width = 1200, margin = 4, timeout_ms = 120000 },
   cache = { enabled = true, dir = nil },
   player = nil,
+  window = { autofit = "80%x80%", ontop = true, args = {} },
   keymaps = {
     preset = true,
     probe = "<leader>Mp",
@@ -136,6 +137,43 @@ player = { "mpv", "--loop-file=no" }
 > inside a terminal that is the terminal host, not `nvim.exe`. Under a GUI
 > Neovim the same call puts it in front, which makes this look intermittent
 > rather than structural.
+
+## `window`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `window.autofit` | `string` | `"80%x80%"` |
+| `window.ontop` | `boolean` | `true` |
+| `window.args` | `string[]` | `{}` |
+
+The windowed mpv player behind `media.play_window()` and `:Media window` — the
+one a consumer opens on a video and stops again by a handle (`hover.nvim` uses
+it for the `<CR>` in a video hover). Always mpv, unlike `player`, because a
+controllable window needs the same binary every time.
+
+- **`autofit`** is mpv's `--autofit-larger`: the window shrinks to fit inside
+  this fraction of the screen and never grows a small video past its own pixels.
+  `""` leaves the size to mpv.
+- **`ontop`** keeps the window above the terminal whatever has focus. On by
+  default because the caller opening it generally cannot bring it to the front
+  (the `player` note above), and a player you cannot see is not a player. Tied
+  to a hover, the window is short-lived anyway.
+- **`args`** is appended verbatim just before the file: `--loop`, `--speed=1.5`,
+  a `--profile`, an `--sub-file` — anything mpv takes.
+
+```lua
+window = { autofit = "60%x60%", ontop = false, args = { "--loop" } }
+```
+
+```lua
+local handle = require("media").play_window(path, { at = 90, mute = true })
+if not handle then return end -- no mpv — never an error
+handle.stop()                  -- ends the window and its process tree; idempotent
+```
+
+`handle.stop()` runs for you at `:qa` even if the caller never calls it — an
+mpv window is a real OS process and would otherwise outlive the editor, the same
+failure `media.audio` guards against.
 
 ## `audio`
 

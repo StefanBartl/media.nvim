@@ -75,8 +75,23 @@ stills from its first second.
 ## `:Media play [path]`
 
 Hands the file to the configured `player`, or to the system's default handler.
-This plugin does not play anything — see
-[the README](../README.md#what-it-does-not-do).
+Fire and forget — this plugin does not own the window and does not stop it.
+
+## `:Media window [path] [at=…]`
+
+Opens the file in a **real mpv window** — video and sound, drawn by mpv with the
+GPU, no editor redraw in the loop. `at` is where playback starts: a number of
+seconds, a percentage (`50%`), or an ffmpeg timestamp (`00:01:23`), passed
+straight to mpv's own `--start`.
+
+Unlike `:Media play` this is always mpv, and the window is stopped at `:qa` even
+if you never close it. The window is `--ontop` by default because a window
+spawned from inside a terminal cannot bring itself to the front on Windows —
+`window.ontop = false` turns that off. Size, ontop and extra mpv flags are the
+`window` table in [configuration.md](configuration.md#window).
+
+Consumers get the same thing with a handle they can stop early:
+`require("media").play_window(path, { at = 90 })`.
 
 ## `:Media cache clear`
 

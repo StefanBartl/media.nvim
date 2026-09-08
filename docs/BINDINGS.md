@@ -40,6 +40,7 @@ subcommand and every path argument completes with `<Tab>`.
 | `:Media frame [path] [at=…] [width=…]` | render and show a poster frame |
 | `:Media sheet [path] [rows=…] [cols=…] [width=…]` | render and show a contact sheet |
 | `:Media play [path]` | hand the file to an external player |
+| `:Media window [path] [at=…]` | play in a real mpv window, from `at` |
 | `:Media cache clear` | delete every rendered still |
 | `:Media health` | `:checkhealth media` |
 

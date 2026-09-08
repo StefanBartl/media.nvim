@@ -136,6 +136,32 @@ return {
   ---@type string|string[]|nil
   player = nil,
 
+  --- The windowed mpv player behind `media.play_window` — the one a consumer
+  --- opens on a video and closes again by its handle (`hover.nvim` uses it for
+  --- the `<CR>` in a video hover). Always mpv, unlike `player`: a caller that
+  --- wants a controllable window needs the same binary every time, and mpv is
+  --- the one that gives a window, sound and its own transport keys for free.
+  window = {
+    --- mpv's `--autofit-larger`: the window shrinks to fit inside this fraction
+    --- of the screen and never grows a small video past its own pixels, where
+    --- scaling would only add blur. `""` leaves the size to mpv/the platform.
+    ---@type string
+    autofit = "80%x80%",
+
+    --- Keep the window above the terminal whatever has focus. On by default
+    --- because the caller that opens this generally cannot bring it to the
+    --- front — inside a terminal, Windows only lets the terminal host
+    --- foreground a window — and a player you cannot see is not a player. The
+    --- window is short-lived anyway when a consumer ties it to a hover.
+    ---@type boolean
+    ontop = true,
+
+    --- Extra mpv arguments, appended verbatim just before the file. `--loop`,
+    --- `--speed=1.5`, a `--profile`, an `--sub-file` — anything mpv takes.
+    ---@type string[]
+    args = {},
+  },
+
   --- `<leader>M` because a survey of this configuration found the whole
   --- capital-M leader space unused, and because these four actions want to sit
   --- together under one which-key group rather than compete for single letters.

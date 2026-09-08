@@ -153,6 +153,31 @@ function M.audio_available()
   return require("media.core.audio").available()
 end
 
+--- Open `path` in a real mpv window — video and sound — and hand back a handle
+--- that stops it again.
+---
+--- For a consumer that wants a video to actually *play*: the block-graphics
+--- route (`media.frames` + `images.blocks`) is the editor's redraw twelve times
+--- a second, and on a slow terminal that is a slideshow however the paint is
+--- written. mpv's window has no such ceiling. See `media.core.player`.
+---
+--- Returns `nil` and a reason when mpv cannot be found — never raises, so the
+--- caller falls back to a still and says why.
+---@param path string
+---@param opts Media.PlayerOpts|nil
+---@return Media.Player.Handle|nil handle
+---@return string|nil err
+function M.play_window(path, opts)
+  return require("media.core.player").start(path, opts)
+end
+
+--- Whether `media.play_window` can be expected to open a window: mpv on PATH
+--- (or `bin.mpv` configured).
+---@return boolean
+function M.player_available()
+  return require("media.core.player").available()
+end
+
 --- Forget every rendered still and every remembered probe.
 ---@return integer removed  # files deleted from the disk cache
 function M.clear_cache()
