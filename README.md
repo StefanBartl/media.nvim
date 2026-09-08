@@ -59,7 +59,6 @@ question each page answers.
 - [Command reference](docs/commands.md) — every command and argument.
 - [Bindings cheatsheet](docs/BINDINGS.md) — keymaps, commands and autocommands at a glance.
 - [Health check](docs/health.md) — what `:checkhealth media` reports, line by line.
-- [Roadmap](docs/ROADMAP.md) — what is deliberately not here yet, and why.
 
 `:help media` is the same reference inside the editor.
 
@@ -101,15 +100,25 @@ mtime, so an entry is safe to keep forever and an edited file misses.
 
 ## What it does not do
 
-**It does not play video, and nothing in a terminal Neovim can.** The only image
-protocol that reaches the terminal from inside Neovim carries a whole picture per
-write and has no notion of a frame, and Neovim repaints over anything drawn
-between its own redraws. `:Media play` hands the file to a real player, and that
-is the honest end of it.
+**It does not paint anything, and it does not play anything.** It produces PNGs
+and it drives a player; what happens to either is a consumer's business. That
+line is where it stays, for the same reason images.nvim keeps to its own side of
+it.
 
-Two things would move that line — a block-graphics flipbook, and frame-stepping
-as a poster frame you can scrub. Both are in [docs/ROADMAP.md](docs/ROADMAP.md)
-with what they would cost.
+**Nothing in a terminal Neovim can show a video as a real picture**, which is
+worth stating precisely because it decides the shape of everything above. The
+only image protocol that reaches the terminal from inside Neovim carries a whole
+base64 payload per write and has no notion of a frame, and Neovim repaints over
+anything drawn between its own redraws. The Kitty protocol has animation frames
+and would be the right tool — measured 2026-08-05, on Windows in WezTerm nothing
+sent from inside Neovim renders through it at all.
+
+What does move the line is a consumer that draws *text*.
+[hover.nvim](https://github.com/StefanBartl/hover.nvim) asks for a run of stills
+through `media.frames()` and paints them as coloured blocks — which collide with
+no graphics protocol and survive every redraw — with sound from the mpv this
+plugin drives over its JSON IPC socket. `:Media play` remains the other honest
+answer: hand the file to a real player.
 
 ---
 

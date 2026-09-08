@@ -19,8 +19,11 @@
 --- inside Neovim carries a whole picture per write and has no notion of a
 --- frame, and Neovim repaints over anything drawn between its own redraws.
 --- `media.play` hands the file to something that can, and that is the honest
---- end of it. See `docs/ROADMAP.md` for the two things that would move the line
---- and why neither is free.
+--- end of it. What does move the line is a consumer that draws text: hover.nvim
+--- asks for a run of stills through `frames()` and paints them as coloured
+--- blocks, driving the sound through `core.audio`'s mpv handle. Block graphics
+--- collide with no terminal protocol and survive every redraw, which is the
+--- whole reason that route works where an image protocol cannot.
 ---
 --- **The public surface.**
 ---
