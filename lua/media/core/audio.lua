@@ -170,9 +170,11 @@ local function wrap(pipe, proc)
       pcall(function()
         pipe:close()
       end)
-      pcall(function()
-        proc:kill(15)
-      end)
+      -- Through `media.core.proc`, never `proc:kill` directly: on Windows the
+      -- pid this holds is a `mpv.COM` wrapper and the player is its child, so
+      -- a signal to it is reported as delivered and stops nothing. That module
+      -- carries the measurement.
+      require("media.core.proc").stop(proc)
     end,
   }
 end
@@ -207,38 +209,60 @@ function M.start(path, opts, callback)
   -- the length of the file.
   local proc = vim.system(argv, {})
 
-  local pipe = uv.new_pipe(false)
   local attempts = 0
   local given_up = false
 
+  -- **A fresh pipe per attempt, and that is the fix rather than the style.**
+  -- Retrying `connect` on a `uv_pipe_t` that has already failed once returns
+  -- `EBUSY` on Windows, forever: the handle is spent, not idle. Reusing one
+  -- meant the first attempt failed with the honest "the socket is not there
+  -- yet" and all thirty-nine after it failed with EBUSY -- so the handle never
+  -- came up at all, `state.audio` stayed nil, and mpv played on with nothing
+  -- able to pause, seek or stop it. Measured 2026-09-08.
   local function try_connect()
     if given_up then return end
     attempts = attempts + 1
-    pipe:connect(sock, function(err)
-      if given_up then return end
-      if err then
-        if attempts >= 40 then
-          given_up = true
-          pcall(function()
-            proc:kill(15)
-          end)
-          vim.schedule(function()
-            callback(nil, "mpv's IPC socket never came up: " .. tostring(err))
-          end)
-          return
-        end
-        local retry = uv.new_timer()
-        retry:start(50, 0, function()
-          retry:stop()
-          retry:close()
-          try_connect()
+
+    local pipe = uv.new_pipe(false)
+
+    ---@param reason string
+    local function retry(reason)
+      pcall(function()
+        pipe:close()
+      end)
+      if attempts >= 40 then
+        given_up = true
+        require("media.core.proc").stop(proc)
+        vim.schedule(function()
+          callback(nil, "mpv's IPC socket never came up: " .. reason)
         end)
         return
       end
-      vim.schedule(function()
-        callback(wrap(pipe, proc), nil)
+      local timer = uv.new_timer()
+      timer:start(50, 0, function()
+        timer:stop()
+        timer:close()
+        try_connect()
+      end)
+    end
+
+    local ok, err = pcall(function()
+      pipe:connect(sock, function(cerr)
+        if given_up then return end
+        if cerr then
+          retry(tostring(cerr))
+          return
+        end
+        vim.schedule(function()
+          callback(wrap(pipe, proc), nil)
+        end)
       end)
     end)
+
+    -- `connect` can throw rather than call back -- a malformed pipe name, a
+    -- handle libuv refuses. Retrying is right either way; the distinction
+    -- matters only in the message.
+    if not ok then retry(tostring(err)) end
   end
 
   try_connect()

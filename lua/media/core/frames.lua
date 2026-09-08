@@ -146,7 +146,7 @@ function M.frames(path, opts, callback)
       cancelled = true
       if proc then
         pcall(function()
-          proc:kill(15)
+          require("media.core.proc").stop(proc)
         end)
         proc = nil
       end
