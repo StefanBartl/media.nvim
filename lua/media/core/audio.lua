@@ -55,7 +55,7 @@ end
 --- the file and `--start` only when there is somewhere to start from are
 --- decisions invisible in what comes out of the speakers until they are
 --- wrong, and asserting them should not need mpv installed.
----@param spec { mpv: string, path: string, sock: string, at: number|nil }
+---@param spec { mpv: string, path: string, sock: string, at: number|nil, paused: boolean|nil }
 ---@return string[]
 function M.args(spec)
   local argv = {
@@ -69,6 +69,14 @@ function M.args(spec)
   if type(spec.at) == "number" and spec.at > 0 then
     argv[#argv + 1] = ("--start=%s"):format(tostring(spec.at))
   end
+  -- **Starting paused is for a caller whose picture is already moving.**
+  -- mpv takes about a second to come up, and a caller that shows something in
+  -- the meantime has moved on by the time the socket answers: unpaused, mpv
+  -- would then be playing from where the caller *was*, and the two would have
+  -- to be reconciled by dragging one of them backwards. Paused, the caller
+  -- seeks it to wherever it has got to and resumes, and the first sound heard
+  -- is already in the right place.
+  if spec.paused then argv[#argv + 1] = "--pause=yes" end
   argv[#argv + 1] = spec.path
   return argv
 end
@@ -201,7 +209,7 @@ function M.start(path, opts, callback)
   end
 
   local sock = socket_path()
-  local argv = M.args({ mpv = mpv, path = path, sock = sock, at = opts.at })
+  local argv = M.args({ mpv = mpv, path = path, sock = sock, at = opts.at, paused = opts.paused })
 
   -- Not `detach`, and not awaited — the same two decisions `media.core.play`
   -- makes, and its module header explains why: `detach` never starts a

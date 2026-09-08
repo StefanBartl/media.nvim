@@ -141,6 +141,7 @@
 
 ---@class Media.AudioOpts
 ---@field at number|nil  # seconds into the file to start from; default 0
+---@field paused boolean|nil  # start suspended, for a caller that will seek and resume once the socket answers
 
 --- What `media.audio` hands back once mpv's IPC socket answers. Every method
 --- is fire-and-forget except `time_pos`, which is the one thing a caller
