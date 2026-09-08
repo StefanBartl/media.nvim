@@ -127,7 +127,8 @@ window, opened on the file at a given offset and stopped again by a handle the
 caller holds. mpv decodes, scales, syncs the sound and draws with the GPU, with
 no editor redraw in the loop — `hover.nvim` uses it for the `<CR>` in a video
 hover. `:Media play` is the third answer, and the least owned: hand the file to
-whatever the user configured, or to the system's default handler.
+whatever the user configured, or to the system's default handler. `hover.nvim`
+falls back to it too, for the same `<CR>`, on a machine without mpv on PATH.
 
 ---
 
