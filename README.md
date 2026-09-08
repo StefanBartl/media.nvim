@@ -74,6 +74,7 @@ Three answers, and nothing else.
 | **Describe** | `ffprobe` in one process, flattened into one record: duration, size, bitrate, resolution, frame rate, codecs, channels. |
 | **Poster frame** | One still, seeked to a configurable offset, scaled and cached as a PNG. |
 | **Contact sheet** | The whole running time as a grid of stills — one render, one picture, no playback. |
+| **Frame run** | A stretch of the file as a numbered sequence of stills, one ffmpeg pass, cancellable — what a consumer that can draw cells turns into moving picture. |
 
 Three details are the reason this is a plugin rather than a `vim.system` call in
 your config:

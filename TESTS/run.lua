@@ -28,6 +28,7 @@ local specs = {
   "formats_spec.lua",
   "probe_spec.lua",
   "frame_args_spec.lua",
+  "frames_args_spec.lua",
   "sheet_args_spec.lua",
   "cache_key_spec.lua",
   "ui_spec.lua",

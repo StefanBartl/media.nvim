@@ -70,6 +70,24 @@ usually is: black, a fade-in, a distributor's logo, or a slate.
 a few hundred cells wide, and every pixel past what the terminal will draw is
 decode time and cache bytes spent on nothing.
 
+## `frames`
+
+A run of stills at a fixed rate — the decode half of block-graphics playback.
+Nothing here draws them: `media.frames(path, opts, cb)` hands back PNG paths
+in order, plus a handle whose `cancel()` kills the decode and guarantees the
+callback never fires.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `from` | `nil` | Where a run starts. Seconds, `"10%"`, or an ffmpeg timestamp; `nil` is the beginning |
+| `fps` | `12` | Stills per second of source material — the sampling rate, not the playback rate. The low end of what reads as motion, and half the decode and cache of 24 |
+| `count` | `24` | Stills per run. Two seconds at 12 fps: short enough to arrive quickly, long enough that the next run can be decoded while it plays |
+| `width` | `320` | Pixel width before a consumer samples it into cells. Much smaller than `frame.width`, and that difference is paid `count` times |
+
+A run that reaches the end of the file returns however many stills exist —
+partial output is a result, not a failure, or the end of every video would be
+unplayable.
+
 ## `sheet`
 
 | Key | Type | Default |

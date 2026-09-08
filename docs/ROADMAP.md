@@ -25,7 +25,34 @@ quarter-second wait.
 
 ---
 
-## Block-graphics playback — the only honest moving picture
+## Block-graphics playback — half of it is built
+
+**Status 2026-09-08.** The decode half is here: `media.frames()` produces a
+run of stills in one ffmpeg pass, cancellable, cached like everything else.
+The drawing half is `images.blocks` in images.nvim. What is still missing is
+the consumer — the transport state (playing/paused, which frame, which run)
+that belongs to whoever owns the window, exactly as the frame-stepping
+section above argues.
+
+Measured end to end on this machine, a 640x360 clip at 80x36 cells:
+
+| | |
+|---|---|
+| `media.frames` — 24 stills, one ffmpeg pass | 168 ms (3 ms on a cache hit) |
+| `images.blocks.sample` — all 24 into cells, one ImageMagick pass | 153 ms |
+| `images.blocks.paint` — one frame | 4.6 ms → a 218 fps ceiling |
+| request to first frame on screen | **325 ms** |
+| highlight groups for the whole run | 637, against a hard ceiling of 19 602 |
+
+The paragraph below was written before any of that was measured, and one
+sentence in it turned out to be the important one: the ImageMagick read had
+to be batched. It is — one call for the run rather than one per frame is
+186 ms against 1593 ms. The other half of the warning was misplaced, though:
+the thing that nearly sank the approach was not throughput but
+`nvim_set_hl`'s hard ceiling, which a truecolour cell grid reaches in seven
+noisy frames. Quantising is what bounds it.
+
+**The original note, for the reasoning:**
 
 **The idea.** Extract frames at 8–12 fps, convert each to coloured block
 graphics, and swap buffer lines on a timer. It is *text* — one `█` per cell with

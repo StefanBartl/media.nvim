@@ -51,6 +51,41 @@ return {
     width = 800,
   },
 
+  --- A run of stills at a fixed rate — what a consumer draws as moving
+  --- picture. Every number here is chosen against the one thing that makes
+  --- this feel broken or not: how long the reader waits before something
+  --- moves.
+  frames = {
+    --- Where a run starts when the caller names no offset. Same shapes as
+    --- `frame.at`; nil means the beginning, because unlike a poster frame a
+    --- run is asked for by somebody who already knows which moment they want.
+    ---@type number|string|nil
+    from = nil,
+
+    --- Stills per second of source material. Not the playback rate — a
+    --- consumer may draw these at any speed — but the rate they are sampled
+    --- at, which is what decides whether motion reads as motion. Twelve is
+    --- the low end of that, and it halves the decode and the cache against
+    --- twenty-four.
+    ---@type number
+    fps = 12,
+
+    --- How many stills one run holds. At 12 fps this is two seconds — short
+    --- enough that the first one arrives quickly, long enough that the next
+    --- run can be decoded while it plays.
+    ---@type integer
+    count = 24,
+
+    --- Pixel width before the consumer samples it down to cells. Far smaller
+    --- than `frame.width`, and for the same reason that one is 800 rather
+    --- than the source width: a terminal cell grid is a few hundred cells
+    --- across at most, and every pixel past what gets drawn is decode time
+    --- and cache bytes spent on nothing. At 24 frames a run, that difference
+    --- is paid 24 times.
+    ---@type integer
+    width = 320,
+  },
+
   --- The contact sheet: one picture of the whole file.
   sheet = {
     ---@type integer

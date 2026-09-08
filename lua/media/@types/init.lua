@@ -120,6 +120,17 @@
 ---@field at number|string|nil  # default `frame.at`
 ---@field width integer|nil     # default `frame.width`
 
+---@class Media.FramesOpts
+---@field from number|string|nil  # where the run starts; seconds, "10%", or an ffmpeg timestamp. default `frames.from`
+---@field count integer|nil       # how many stills. default `frames.count`
+---@field fps number|nil          # stills per second of source material. default `frames.fps`
+---@field width integer|nil       # pixel width before the consumer samples it into cells. default `frames.width`
+
+--- What `media.frames` hands back so a caller can stop a decode it no longer
+--- needs. `cancel()` is idempotent, and after it the callback never fires.
+---@class Media.Frames.Handle
+---@field cancel fun(): nil
+
 ---@class Media.SheetOpts
 ---@field rows integer|nil
 ---@field cols integer|nil
