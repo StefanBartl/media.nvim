@@ -36,12 +36,12 @@ directory produces *"no frame was written"* from a renderer that ran perfectly.
 | `images found` | rendered stills are drawn in the terminal |
 | `images not installed` | stills open in the system image viewer instead |
 
-## `media.nvim: audio`
+## `media.nvim: mpv`
 
 | Line | Means |
 | --- | --- |
-| `mpv found: <path>` | a played run can start sound via `media.audio` |
-| `mpv not found` | with the install command for your platform, and the `bin.mpv` escape hatch — a played run stays silent, which is not an error |
+| `mpv found: <path>` | `media.audio` can give a played run sound, and `:Media window` can open a real player window |
+| `mpv not found` | with the install command for your platform, and the `bin.mpv` escape hatch — a played run stays silent and `:Media window` cannot open, neither an error |
 
 Unlike the toolchain section, `mpv` missing is `h_info`, not `h_err`: nothing
 here requires it, and everything that uses it degrades to exactly what it did
@@ -51,6 +51,7 @@ before this existed.
 
 The video and audio extension lists, and what `:Media play` will launch.
 
-On Windows this section also prints the note about a player window opening
-behind the terminal — it is not a defect, and knowing that in advance saves an
-issue. See [configuration.md](configuration.md#player).
+On Windows this section also prints the note about a window started from a
+terminal Neovim opening behind the terminal — it is not a defect, and knowing
+that in advance saves an issue. `:Media window` passes `--ontop` so the window
+stays visible regardless; see [configuration.md](configuration.md#window).

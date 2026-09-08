@@ -7,12 +7,17 @@
 | Neovim | **0.10+** (`vim.system`, `vim.uv`) |
 | [lib.nvim](https://github.com/StefanBartl/lib.nvim) | required |
 | `ffmpeg` + `ffprobe` | required — one install, both binaries |
+| `mpv` | optional — sound for a played run, and `:Media window` / `media.play_window()` |
 
 ```bash
 winget install Gyan.FFmpeg          # Windows
 brew install ffmpeg                 # macOS
 sudo apt install ffmpeg             # Debian / Ubuntu
 scoop install ffmpeg                # Windows, scoop
+
+winget install mpv-player.mpv       # Windows  — optional
+brew install mpv                    # macOS    — optional
+sudo apt install mpv                # Debian / Ubuntu — optional
 ```
 
 After a Windows install, restart the terminal: winget and scoop extend the *user*

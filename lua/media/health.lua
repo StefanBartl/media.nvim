@@ -107,14 +107,19 @@ function M.check()
     "rendered stills are shown in the terminal instead of an external viewer"
   )
 
-  h_start("media.nvim: audio")
+  h_start("media.nvim: mpv")
   local mpv = require("media.core.audio").find_mpv()
   if mpv then
-    h_ok("mpv found: " .. mpv .. " — a played run can have sound")
-  else
-    h_info("mpv not found — a played run stays silent, never an error")
+    h_ok("mpv found: " .. mpv)
     h_info(
-      "install it for sound: winget install mpv-player.mpv (Windows), "
+      "`media.audio` can give a played run sound, and `:Media window` opens a real player window"
+    )
+  else
+    h_info(
+      "mpv not found — a played run stays silent and `:Media window` cannot open, never an error"
+    )
+    h_info(
+      "install it: winget install mpv-player.mpv (Windows), "
         .. "brew install mpv (macOS), apt install mpv (Debian/Ubuntu) — "
         .. 'or set `require("media").setup({ bin = { mpv = "…" } })`'
     )
@@ -140,7 +145,8 @@ function M.check()
   if vim.fn.has("win32") == 1 then
     h_info(
       "Windows: a player started from a terminal Neovim opens behind the terminal window — "
-        .. "Windows only grants focus to the process owning the foreground window."
+        .. "Windows only grants focus to the process owning the foreground window. "
+        .. "`:Media window` passes `--ontop` so it stays visible anyway (`window.ontop = false` to opt out)."
     )
   end
 end

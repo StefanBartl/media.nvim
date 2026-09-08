@@ -13,7 +13,17 @@
 ---@field sheet Media.Config.Sheet
 ---@field cache Media.Config.Cache
 ---@field player string|string[]|nil
+---@field window Media.Config.Window
 ---@field keymaps Media.Config.Keymaps
+
+--- The windowed mpv player behind `media.play_window` — a real mpv window a
+--- consumer opens on a file and stops again by its handle. Distinct from
+--- `player`, which is a fire-and-forget handoff to whatever the user configured
+--- (or the system default): this one is always mpv, always owned.
+---@class Media.Config.Window
+---@field autofit string  # mpv `--autofit-larger`, e.g. "80%x80%"; "" disables the size hint
+---@field ontop boolean   # keep the window above the terminal regardless of focus
+---@field args string[]   # extra mpv arguments, appended verbatim before the file
 
 ---@class Media.Config.Bin
 ---@field ffmpeg string|nil
@@ -64,6 +74,7 @@
 ---@field sheet? Media.Opts.Sheet
 ---@field cache? Media.Opts.Cache
 ---@field player? string|string[]
+---@field window? Media.Opts.Window
 ---@field keymaps? Media.Opts.Keymaps
 
 ---@class Media.Opts.Bin
@@ -85,6 +96,11 @@
 ---@class Media.Opts.Cache
 ---@field enabled? boolean
 ---@field dir? string
+
+---@class Media.Opts.Window
+---@field autofit? string
+---@field ontop? boolean
+---@field args? string[]
 
 ---@class Media.Opts.Keymaps
 ---@field preset? boolean
@@ -152,5 +168,20 @@
 ---@field seek fun(seconds: number): nil
 ---@field time_pos fun(callback: fun(seconds: number|nil): nil): nil
 ---@field stop fun(): nil
+
+---@class Media.PlayerOpts
+---@field at number|string|nil  # where to start: seconds, a percentage ("50%"), or an ffmpeg timestamp — mpv's own `--start` grammar. nil or 0 is the beginning.
+---@field autofit string|nil    # override `config.window.autofit` for this one window
+---@field ontop boolean|nil     # override `config.window.ontop` for this one window
+---@field mute boolean|nil      # start with sound off (the picture still plays)
+
+--- What `media.play_window` hands back: a real mpv window, and the means to
+--- end it. `stop()` is idempotent and ends the whole process tree — on Windows
+--- the only thing that stops mpv (see `media.core.proc`). There is no clock to
+--- ask for, unlike `Media.Audio.Handle`: mpv's own window is the interface.
+---@class Media.Player.Handle
+---@field proc vim.SystemObj   # the `vim.system` handle, for callers that want the pid
+---@field stop fun(): nil      # end the window and its process tree; idempotent
+---@field stopped fun(): boolean  # whether `stop()` has been called
 
 return {}

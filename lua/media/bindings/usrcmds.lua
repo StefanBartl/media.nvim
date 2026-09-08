@@ -64,9 +64,9 @@ end
 
 --- Perform one action on one path. The single body behind both the commands and
 --- the keymaps.
----@param action "probe"|"frame"|"sheet"|"play"
+---@param action "probe"|"frame"|"sheet"|"play"|"window"
 ---@param path string
----@param opts table|nil  # forwarded to frame/sheet
+---@param opts table|nil  # forwarded to frame/sheet/window
 ---@return nil
 function M.run(action, path, opts)
   local ui = require("media.ui")
@@ -79,6 +79,20 @@ function M.run(action, path, opts)
   if action == "play" then
     local ok, err = require("media").play(path)
     if not ok then say(err or "could not play this file", vim.log.levels.ERROR) end
+    return
+  end
+
+  if action == "window" then
+    -- A real mpv window, unlike `play` which hands the file to whatever the
+    -- user configured (or the system default). This one is always mpv and is
+    -- stopped at `:qa` — see `media.core.player`. The handle is dropped
+    -- deliberately: from `:Media` there is no UI element to tie it to, so it
+    -- lives until mpv or the editor exits.
+    local at = opts and opts.at or nil
+    local _, err = require("media").play_window(path, {
+      at = (type(at) == "number" or type(at) == "string") and at or nil,
+    })
+    if err then say(err, vim.log.levels.ERROR) end
     return
   end
 
@@ -220,6 +234,19 @@ function M.register()
       },
 
       {
+        path = { "window" },
+        args = path_arg,
+        kv = { { key = "at", type = "STRING" } },
+        desc = "Play in an mpv window  :Media window [path] [at=90]",
+        run = function(ctx)
+          local path = require_path(ctx, "Media window")
+          if not path then return end
+          local kv = ctx.kv or {}
+          M.run("window", path, { at = kv.at and (tonumber(kv.at) or kv.at) or nil })
+        end,
+      },
+
+      {
         path = { "cache", "clear" },
         desc = "Delete every rendered still",
         run = function()
@@ -263,7 +290,7 @@ function M.register_fallback()
       if line:match("^%s*Media%s+%S*$") then
         return vim.tbl_filter(function(name)
           return name:find(arg_lead, 1, true) == 1
-        end, { "probe", "frame", "sheet", "play", "cache", "health" })
+        end, { "probe", "frame", "sheet", "play", "window", "cache", "health" })
       end
       return complete_media_path(arg_lead)
     end,
