@@ -33,7 +33,7 @@ local uv = vim.uv or vim.loop
 --- official download page produces), plus the two Unix prefixes that a
 --- Homebrew or `/usr/local` install uses when a login shell was not the parent
 --- of this process.
----@param name string "ffmpeg" or "ffprobe"
+---@param name string binary name, e.g. "ffmpeg", "ffprobe", "mpv"
 ---@return string[]
 local function well_known(name)
   local home = uv.os_homedir() or ""
@@ -66,7 +66,11 @@ end
 --- PATH the bare name is what gets returned, because that is what should end up
 --- in an argv — an absolute path resolved here would freeze a lookup the OS is
 --- better at repeating.
----@param name "ffmpeg"|"ffprobe"
+---
+--- Not only "ffmpeg"|"ffprobe": `media.core.audio` looks up "mpv" through the
+--- same function, for the same reason — the winget/scoop shim problem this
+--- module exists for is not specific to ffmpeg's two binaries.
+---@param name string "ffmpeg", "ffprobe", "mpv", …
 ---@return string|nil
 function M.find(name)
   local cached = resolved[name]

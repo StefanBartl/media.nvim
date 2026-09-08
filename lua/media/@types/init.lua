@@ -18,6 +18,7 @@
 ---@class Media.Config.Bin
 ---@field ffmpeg string|nil
 ---@field ffprobe string|nil
+---@field mpv string|nil
 
 ---@class Media.Config.Frame
 ---@field at number|string  # seconds, or a percentage of the duration ("10%")
@@ -68,6 +69,7 @@
 ---@class Media.Opts.Bin
 ---@field ffmpeg? string
 ---@field ffprobe? string
+---@field mpv? string
 
 ---@class Media.Opts.Frame
 ---@field at? number|string
@@ -136,5 +138,18 @@
 ---@field cols integer|nil
 ---@field width integer|nil     # width of the whole sheet
 ---@field margin integer|nil
+
+---@class Media.AudioOpts
+---@field at number|nil  # seconds into the file to start from; default 0
+
+--- What `media.audio` hands back once mpv's IPC socket answers. Every method
+--- is fire-and-forget except `time_pos`, which is the one thing a caller
+--- cannot know without asking — mpv owns the clock.
+---@class Media.Audio.Handle
+---@field pause fun(): nil
+---@field resume fun(): nil
+---@field seek fun(seconds: number): nil
+---@field time_pos fun(callback: fun(seconds: number|nil): nil): nil
+---@field stop fun(): nil
 
 return {}

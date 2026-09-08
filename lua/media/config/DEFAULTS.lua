@@ -16,6 +16,11 @@ return {
   bin = {
     ffmpeg = nil,
     ffprobe = nil,
+    --- The audio player behind `media.audio` — see its module header for why
+    --- an audio player rather than a decoder is what drives sound. `nil` means
+    --- "not on PATH", and `media.audio.available()` says so; nothing that
+    --- shows a video fails over it, playback is just silent.
+    mpv = nil,
   },
 
   --- Hard ceiling on any one `ffmpeg`/`ffprobe` run, in milliseconds.

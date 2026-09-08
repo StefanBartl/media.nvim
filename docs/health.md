@@ -1,6 +1,6 @@
 # `:checkhealth media`
 
-Four sections, in the order things go wrong.
+Five sections, in the order things go wrong.
 
 ## `media.nvim: toolchain`
 
@@ -35,6 +35,17 @@ directory produces *"no frame was written"* from a renderer that ran perfectly.
 | `lib.nvim not installed` | the plugin still works; the command loses completion and the keys lose the registry's diagnostics |
 | `images found` | rendered stills are drawn in the terminal |
 | `images not installed` | stills open in the system image viewer instead |
+
+## `media.nvim: audio`
+
+| Line | Means |
+| --- | --- |
+| `mpv found: <path>` | a played run can start sound via `media.audio` |
+| `mpv not found` | with the install command for your platform, and the `bin.mpv` escape hatch — a played run stays silent, which is not an error |
+
+Unlike the toolchain section, `mpv` missing is `h_info`, not `h_err`: nothing
+here requires it, and everything that uses it degrades to exactly what it did
+before this existed.
 
 ## `media.nvim: what is claimed`
 
