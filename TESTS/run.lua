@@ -31,6 +31,7 @@ local specs = {
   "frames_args_spec.lua",
   "sheet_args_spec.lua",
   "audio_args_spec.lua",
+  "proc_spec.lua",
   "cache_key_spec.lua",
   "ui_spec.lua",
   "smoke_spec.lua",

@@ -17,6 +17,7 @@ return function(H)
     "media.core.cache",
     "media.core.frame",
     "media.core.play",
+    "media.core.proc",
     "media.core.probe",
     "media.core.sheet",
     "media.bindings",
