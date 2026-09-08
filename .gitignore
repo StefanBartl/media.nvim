@@ -1,0 +1,9 @@
+# Local dependency checkouts used by the test runner.
+.deps/
+
+# Generated documentation map (documentation.nvim / :DocMap).
+docs/map/
+
+# Editor and OS noise.
+.DS_Store
+*.swp

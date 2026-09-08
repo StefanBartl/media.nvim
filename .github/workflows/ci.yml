@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  # Gating: stylua + luacheck must pass.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: stylua (check)
+        uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v2.5.2
+          args: --check lua plugin TESTS
+
+      - name: Install luacheck
+        run: sudo apt-get update && sudo apt-get install -y luarocks && sudo luarocks install luacheck 1.2.0
+
+      - name: luacheck
+        run: luacheck lua plugin TESTS
+
+  # Real gate: the framework-free headless suite. Deliberately runs WITHOUT
+  # ffmpeg on the runner — everything worth asserting here (argument order,
+  # offset arithmetic, ffprobe's JSON shapes, cache-key separation) is a pure
+  # function, split out from the processes that use them for exactly this
+  # reason. A suite that needed a working toolchain would test the runner.
+  # lib.nvim is checked out as a sibling (keymap registry, usercmd composer).
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout media.nvim
+        uses: actions/checkout@v5
+        with:
+          path: media.nvim
+
+      - name: Checkout lib.nvim
+        uses: actions/checkout@v5
+        with:
+          repository: StefanBartl/lib.nvim
+          path: lib.nvim
+          ref: ci-verified
+
+      - name: Install Neovim (stable)
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Run tests
+        working-directory: media.nvim
+        env:
+          REPOS_DIR: ${{ github.workspace }}
+        run: nvim --headless -u NONE -c "set rtp+=." -c "set rtp+=../lib.nvim" -c "luafile TESTS/run.lua" -c "qa!"

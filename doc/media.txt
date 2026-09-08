@@ -1,0 +1,207 @@
+*media.txt*     What is in this media file, and one picture of it
+
+                                                                       *media*
+                                                                 *media.nvim*
+
+`ffprobe` says how long, how big and in which codec; `ffmpeg` produces a
+poster frame or a contact sheet as a PNG on disk. Anything that can draw a
+picture can then show a video.
+
+==============================================================================
+CONTENTS                                                      *media-contents*
+
+    1. Requirements .......................... |media-requirements|
+    2. Setup ................................. |media-setup|
+    3. Commands .............................. |media-commands|
+    4. Keymaps ............................... |media-keymaps|
+    5. Configuration ......................... |media-configuration|
+    6. API ................................... |media-api|
+    7. What it does not do ................... |media-limits|
+    8. Health ................................ |media-health|
+
+==============================================================================
+1. REQUIREMENTS                                           *media-requirements*
+
+    Neovim 0.10+                (`vim.system`, `vim.uv`)
+    lib.nvim                    keymap registry, command completion
+    ffmpeg + ffprobe            one install, both binaries
+
+        winget install Gyan.FFmpeg      (Windows)
+        brew install ffmpeg             (macOS)
+        sudo apt install ffmpeg         (Debian / Ubuntu)
+
+After a Windows install, restart the terminal: winget and scoop extend the
+user PATH, and every running process inherited its copy at login. media.nvim
+probes both shim directories anyway, so it usually finds ffmpeg regardless.
+
+Optional: images.nvim draws rendered stills in the terminal instead of
+handing them to an external viewer.
+
+==============================================================================
+2. SETUP                                                         *media-setup*
+
+>lua
+    {
+      "StefanBartl/media.nvim",
+      dependencies = { "StefanBartl/lib.nvim" },
+      event = "VeryLazy",
+      opts = {},
+    }
+<
+`setup()` is optional for the API — `require("media").frame(...)` works
+without it — but the command and the keymaps come from it.
+
+`VeryLazy` rather than `cmd = { "Media" }` because the keymaps have to exist
+before you press one.
+
+==============================================================================
+3. COMMANDS                                                   *media-commands*
+
+                                                                      *:Media*
+:Media [path]           Describe the file: duration, size, bitrate,
+                        resolution, frame rate, codecs, channels. Same as
+                        `:Media probe`.
+
+:Media probe [path]     As above.
+
+:Media frame [path] [at=…] [width=…]
+                        Render one still and show it.
+                        `at=` takes seconds (27.5), a percentage of the
+                        duration (50%) or a timestamp (00:01:23.5).
+                        Default: `at=10%`, `width=800`.
+
+:Media sheet [path] [rows=…] [cols=…] [width=…]
+                        Render a grid of stills spread evenly over the
+                        running time. Default: 3x4 at 1200px.
+
+:Media play [path]      Hand the file to an external player.
+
+:Media cache clear      Delete every rendered still.
+
+:Media health           Run |:checkhealth| media.
+
+Omitting [path] uses <cfile>, then the current buffer's name.
+
+==============================================================================
+4. KEYMAPS                                                     *media-keymaps*
+
+Bound globally by `setup()`, on the path under the cursor.
+
+    <leader>Mp          describe the file
+    <leader>Mf          poster frame
+    <leader>Ms          contact sheet
+    <leader>Mo          play in an external player
+
+Rebind or disable individually through `keymaps` — see
+|media-configuration|.
+
+==============================================================================
+5. CONFIGURATION                                         *media-configuration*
+
+>lua
+    require("media").setup({
+      bin = { ffmpeg = nil, ffprobe = nil },
+      timeout_ms = 15000,
+      frame = { at = "10%", width = 800 },
+      sheet = { rows = 3, cols = 4, width = 1200, margin = 4,
+                timeout_ms = 120000 },
+      cache = { enabled = true, dir = nil },
+      player = nil,
+      keymaps = {
+        preset = true,
+        probe = "<leader>Mp",
+        frame = "<leader>Mf",
+        sheet = "<leader>Ms",
+        play  = "<leader>Mo",
+        which_key = true,
+      },
+    })
+<
+bin.ffmpeg, bin.ffprobe    An explicit path, for a binary installed but not
+                           on PATH. Honoured even when it does not exist, so
+                           the error names your own setting.
+
+timeout_ms                 Ceiling on one ffprobe or poster-frame run.
+                           ffmpeg reading a stalled network mount does not
+                           fail; it waits.
+
+frame.at                   10% rather than 0 because the first frame of a
+                           real video is usually black, a fade-in or a logo.
+
+sheet.timeout_ms           Its own, because a sheet is a pass over the whole
+                           file where a frame is a seek. Files over two
+                           minutes are decoded from keyframes only.
+
+cache.dir                  nil means stdpath("cache")/media.nvim. The key
+                           carries the source file's mtime, so entries never
+                           go stale and never need expiring.
+
+player                     nil hands the file to the system's default
+                           handler. A string or argv list overrides it.
+
+The reasoning for every default is in lua/media/config/DEFAULTS.lua.
+
+==============================================================================
+6. API                                                             *media-api*
+
+>lua
+    local ok, media = pcall(require, "media")
+    if not ok or not media.available() then return end
+
+    media.is_video(path)      -- by extension, no process started
+    media.is_audio(path)
+    media.is_media(path)
+    media.probed(path)        -- what is known already; nil, never blocks
+
+    media.probe(path, function(probe, err) end)
+    media.frame(path, { at = "10%", width = 800 }, function(png, err) end)
+    media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
+    media.play(path)          -- returns ok, err
+    media.clear_cache()       -- returns the number of files removed
+<
+Every callback runs exactly once and on the main loop, so it may touch the
+Neovim API. A cache hit still calls back asynchronously.
+
+A probe record carries: `path`, `container`, `duration`, `size`, `bitrate`,
+`has_video`, `has_audio`, `has_cover`, `width`, `height`, `rotation`, `fps`,
+`video_codec`, `audio_codec`, `channels`, `sample_rate`. Everything but
+`path` and the three booleans may be nil.
+
+`width` and `height` are the *display* pair: a 90-degree rotation is applied
+here, matching what ffmpeg's auto-rotation produces in the still.
+
+`has_video` excludes attached cover art, which is reported as `has_cover`
+instead — an mp3 with album art has a video stream, and taking that at face
+value makes every tagged music file look like a one-frame film.
+
+`require("media.ui").summary(probe)` returns the one-line form
+(`1920x1080 · 4:32 · h264 · 100 MB`).
+
+==============================================================================
+7. WHAT IT DOES NOT DO                                          *media-limits*
+
+media.nvim does not play video, and nothing in a terminal Neovim can. The
+only image protocol that reaches the terminal from inside Neovim carries a
+whole picture per write and has no notion of a frame, and Neovim repaints
+over anything drawn between its own redraws. `:Media play` hands the file to
+a real player, and that is the honest end of it.
+
+On Windows the player's window opens behind the terminal: Windows grants
+focus only to the process owning the foreground window, and inside a
+terminal that is the terminal host, not nvim.exe.
+
+docs/ROADMAP.md has the two approaches that would move that line, and what
+each would cost.
+
+==============================================================================
+8. HEALTH                                                       *media-health*
+
+>vim
+    :checkhealth media
+<
+Verifies both binaries, reports ffmpeg's version, and checks that the cache
+directory is writable — the one failure that is silent otherwise, because a
+read-only cache produces "no frame was written" from a renderer that ran
+perfectly.
+
+vim:tw=78:ts=8:noet:ft=help:norl:
