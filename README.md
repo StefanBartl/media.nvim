@@ -247,6 +247,9 @@ end)
 
 media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
 media.play(path)
+
+media.frames(path, { count = 24, fps = 12 }, function(pngs, err) end)  -- a run, for block-graphics playback
+media.audio(path, { at = 0 }, function(handle, err) end)              -- sound for that run — see media.audio_available()
 ```
 
 Every callback runs exactly once and on the main loop, so it may touch the

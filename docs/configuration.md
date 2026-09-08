@@ -5,7 +5,7 @@ to be useful on its own.
 
 ```lua
 require("media").setup({
-  bin = { ffmpeg = nil, ffprobe = nil },
+  bin = { ffmpeg = nil, ffprobe = nil, mpv = nil },
   timeout_ms = 15000,
   frame = { at = "10%", width = 800 },
   sheet = { rows = 3, cols = 4, width = 1200, margin = 4, timeout_ms = 120000 },
@@ -32,11 +32,14 @@ the summary.
 | --- | --- | --- |
 | `bin.ffmpeg` | `string\|nil` | `nil` |
 | `bin.ffprobe` | `string\|nil` | `nil` |
+| `bin.mpv` | `string\|nil` | `nil` |
 
 An explicit path, for the case where the binary is installed but not on PATH.
 The plugin probes winget's and scoop's shim directories, chocolatey's `bin`,
 `C:/ffmpeg/bin`, `/opt/homebrew/bin` and `/usr/local/bin` by itself — this is the
-escape hatch for everything it does not guess.
+escape hatch for everything it does not guess. `mpv` is looked up the same way
+as `ffmpeg`/`ffprobe` and is optional: it is only used for `media.audio`, and
+its absence just means a played run stays silent.
 
 An explicit path is honoured even when it does not exist, on purpose: the error
 you then get names your own setting, which is a better place to start looking
@@ -133,6 +136,31 @@ player = { "mpv", "--loop-file=no" }
 > inside a terminal that is the terminal host, not `nvim.exe`. Under a GUI
 > Neovim the same call puts it in front, which makes this look intermittent
 > rather than structural.
+
+## `audio`
+
+Not a `setup()` table — `media.audio(path, { at = 0 }, callback)` is called
+directly, the same way `media.frame`/`media.frames` are. It starts `bin.mpv`
+audio-only (`--no-video`) on `path` and hands the callback a handle once
+mpv's own JSON IPC socket answers:
+
+```lua
+media.audio(path, { at = 12.5 }, function(handle, err)
+  if not handle then return end -- no mpv, or its socket never came up — never an error
+  handle.pause()
+  handle.resume()
+  handle.seek(30)
+  handle.time_pos(function(seconds) end)
+  handle.stop()
+end)
+```
+
+Built for `hover.nvim`'s played run, which needs a clock more accurate than a
+Lua timer: the picture is drawn against whatever `time_pos` answers, not
+against a frame count, so it cannot drift from the sound the way two
+independently free-running timers would. See `lua/media/core/audio.lua`'s
+module header for the full reasoning, including why this had to be a real
+player (`ffplay` never reports its position) and not a decoder.
 
 ## `keymaps`
 

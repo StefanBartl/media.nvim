@@ -25,14 +25,20 @@ quarter-second wait.
 
 ---
 
-## Block-graphics playback — half of it is built
+## Block-graphics playback — built
 
-**Status 2026-09-08.** The decode half is here: `media.frames()` produces a
-run of stills in one ffmpeg pass, cancellable, cached like everything else.
-The drawing half is `images.blocks` in images.nvim. What is still missing is
-the consumer — the transport state (playing/paused, which frame, which run)
-that belongs to whoever owns the window, exactly as the frame-stepping
-section above argues.
+**Status 2026-09-08.** All three halves exist now. The decode is
+`media.frames()`, one ffmpeg pass, cancellable, cached like everything else.
+The drawing is `images.blocks` in images.nvim. The consumer — transport
+state, a timer, a control row — is `hover.nvim`'s `preview.playback`
+(`hover.nvim@200ddff`, refined in `hover.nvim@8ccdd23` and `@beb4051`): the
+frame-stepping section above argued that state belongs to whoever owns the
+window, and it does, just in the other repository rather than this one.
+
+**Sound followed the same split, and is built too** (`media.core.audio`,
+this repository; the polling side in `hover.nvim@preview.playback`). It is
+its own subsection below the waveform/spectrogram ideas, since the design
+turned out to have nothing to do with extracting a WAV.
 
 Measured end to end on this machine, a 640x360 clip at 80x36 cells:
 
@@ -87,6 +93,18 @@ show.
 
 **Spectrogram.** `showspectrumpic`, same shape. Useful to fewer people, free once
 the waveform exists.
+
+**Sound for a played run — built.** The naive design has the picture lead — a
+Lua timer ticks, draws a frame — and then needs sound synchronised to a timer
+in an editor process, which is not a clock worth trusting. `media.core.audio`
+inverts it: `mpv --no-video` plays the file over its own JSON IPC socket
+(`--input-ipc-server`), and the timer on the other side asks it *where it
+is* once per tick rather than counting. A late tick just asks again and
+paints whichever frame the answer belongs to — it cannot accumulate a lag
+the way two free-running clocks racing each other would. `ffplay` was
+considered and ruled out: it never reports its position, so this specific
+trick is not available with it. No mpv on PATH is not an error — a played
+run is silent exactly as it was before this existed.
 
 ---
 

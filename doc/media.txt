@@ -100,7 +100,7 @@ Rebind or disable individually through `keymaps` — see
 
 >lua
     require("media").setup({
-      bin = { ffmpeg = nil, ffprobe = nil },
+      bin = { ffmpeg = nil, ffprobe = nil, mpv = nil },
       timeout_ms = 15000,
       frame = { at = "10%", width = 800 },
       sheet = { rows = 3, cols = 4, width = 1200, margin = 4,
@@ -117,9 +117,11 @@ Rebind or disable individually through `keymaps` — see
       },
     })
 <
-bin.ffmpeg, bin.ffprobe    An explicit path, for a binary installed but not
-                           on PATH. Honoured even when it does not exist, so
-                           the error names your own setting.
+bin.ffmpeg, bin.ffprobe,   An explicit path, for a binary installed but not
+bin.mpv                    on PATH. Honoured even when it does not exist, so
+                           the error names your own setting. mpv is optional
+                           -- only |media.audio()| uses it, and its absence
+                           just means a played run stays silent.
 
 timeout_ms                 Ceiling on one ffprobe or poster-frame run.
                            ffmpeg reading a stalled network mount does not
@@ -155,12 +157,26 @@ The reasoning for every default is in lua/media/config/DEFAULTS.lua.
 
     media.probe(path, function(probe, err) end)
     media.frame(path, { at = "10%", width = 800 }, function(png, err) end)
+    media.frames(path, { count = 24, fps = 12 }, function(pngs, err) end)
     media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
     media.play(path)          -- returns ok, err
+    media.audio(path, { at = 0 }, function(handle, err) end)
+    media.audio_available()   -- mpv on PATH (or bin.mpv configured)?
     media.clear_cache()       -- returns the number of files removed
 <
 Every callback runs exactly once and on the main loop, so it may touch the
 Neovim API. A cache hit still calls back asynchronously.
+
+`media.audio()` starts `bin.mpv` audio-only on `path` over its own JSON IPC
+socket, and hands the callback a handle once that socket answers -- never an
+error when mpv is missing, just `handle == nil`. The handle:
+
+    handle.pause()             handle.resume()
+    handle.seek(seconds)       handle.stop()
+    handle.time_pos(function(seconds) end)
+
+Built for a consumer that draws a picture against mpv's own clock instead of
+a Lua timer -- see lua/media/core/audio.lua for the reasoning.
 
 A probe record carries: `path`, `container`, `duration`, `size`, `bitrate`,
 `has_video`, `has_audio`, `has_cover`, `width`, `height`, `rotation`, `fps`,
@@ -180,11 +196,17 @@ value makes every tagged music file look like a one-frame film.
 ==============================================================================
 7. WHAT IT DOES NOT DO                                          *media-limits*
 
-media.nvim does not play video, and nothing in a terminal Neovim can. The
-only image protocol that reaches the terminal from inside Neovim carries a
-whole picture per write and has no notion of a frame, and Neovim repaints
-over anything drawn between its own redraws. `:Media play` hands the file to
-a real player, and that is the honest end of it.
+media.nvim does not play video itself, and nothing in a terminal Neovim can
+draw real moving pictures: the only image protocol that reaches the terminal
+from inside Neovim carries a whole picture per write and has no notion of a
+frame, and Neovim repaints over anything drawn between its own redraws.
+`:Media play` hands the file to a real player, and that is the honest end of
+that command.
+
+What it does provide, for a consumer able to draw block graphics into a
+buffer: `media.frames()` for a decoded run and `media.audio()` for a real
+clock to draw it against. hover.nvim's played video hover is exactly that
+consumer -- see docs/ROADMAP.md's "Block-graphics playback" entry.
 
 On Windows the player's window opens behind the terminal: Windows grants
 focus only to the process owning the foreground window, and inside a
@@ -199,9 +221,12 @@ each would cost.
 >vim
     :checkhealth media
 <
-Verifies both binaries, reports ffmpeg's version, and checks that the cache
-directory is writable — the one failure that is silent otherwise, because a
-read-only cache produces "no frame was written" from a renderer that ran
+Verifies both binaries, reports ffmpeg's version, checks that the cache
+directory is writable, and reports whether mpv is found for media.audio() --
+its absence is informational, never an error, because a played run without
+it is simply silent, exactly as before that feature existed. The cache check
+exists because its own failure is silent otherwise: a read-only cache
+directory produces "no frame was written" from a renderer that ran
 perfectly.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

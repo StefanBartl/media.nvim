@@ -107,6 +107,19 @@ function M.check()
     "rendered stills are shown in the terminal instead of an external viewer"
   )
 
+  h_start("media.nvim: audio")
+  local mpv = require("media.core.audio").find_mpv()
+  if mpv then
+    h_ok("mpv found: " .. mpv .. " — a played run can have sound")
+  else
+    h_info("mpv not found — a played run stays silent, never an error")
+    h_info(
+      "install it for sound: winget install mpv-player.mpv (Windows), "
+        .. "brew install mpv (macOS), apt install mpv (Debian/Ubuntu) — "
+        .. 'or set `require("media").setup({ bin = { mpv = "…" } })`'
+    )
+  end
+
   h_start("media.nvim: what is claimed")
   local video, audio = require("media.formats").known()
   h_info(("video: %s"):format(table.concat(video, ", ")))

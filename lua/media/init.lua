@@ -34,6 +34,7 @@
 --- media.frames(path, { from = 0, count = 24 }, function(pngs, err) end)  -- a run
 --- media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
 --- media.play(path)                  -- hand it to a real player
+--- media.audio(path, { at = 0 }, function(handle, err) end)  -- sound for a played run
 --- ```
 ---
 --- Every callback runs exactly once and on the main loop, so it may touch the
@@ -129,6 +130,24 @@ end
 ---@return string|nil err
 function M.play(path)
   return require("media.core.play").play(path)
+end
+
+--- Start audio-only playback of `path` in mpv, for a consumer that draws its
+--- own picture and wants a real clock to draw it against — see
+--- `media.core.audio` for why that is a whole player and not a decoder.
+---@param path string
+---@param opts Media.AudioOpts|nil
+---@param callback fun(handle: Media.Audio.Handle|nil, err: string|nil): nil
+---@return nil
+function M.audio(path, opts, callback)
+  return require("media.core.audio").start(path, opts, callback)
+end
+
+--- Whether `media.audio` can be expected to produce anything: mpv on PATH (or
+--- `bin.mpv` configured).
+---@return boolean
+function M.audio_available()
+  return require("media.core.audio").available()
 end
 
 --- Forget every rendered still and every remembered probe.
