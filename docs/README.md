@@ -9,7 +9,6 @@ What is where, and which question each page answers.
 | [commands.md](commands.md) | Every `:Media` route and its arguments. |
 | [BINDINGS.md](BINDINGS.md) | Keymaps, commands and autocommands at a glance. |
 | [health.md](health.md) | Every line `:checkhealth media` can print, and what to do about it. |
-| [ROADMAP.md](ROADMAP.md) | What is deliberately not here yet, and what it would cost. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Layout, tests, ground rules. |
 
 The reasoning behind each module lives in the module's own header comment —

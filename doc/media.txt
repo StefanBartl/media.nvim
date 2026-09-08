@@ -206,14 +206,17 @@ that command.
 What it does provide, for a consumer able to draw block graphics into a
 buffer: `media.frames()` for a decoded run and `media.audio()` for a real
 clock to draw it against. hover.nvim's played video hover is exactly that
-consumer -- see docs/ROADMAP.md's "Block-graphics playback" entry.
+consumer: hover.nvim draws a decoded run as block graphics, which is
+text and therefore survives every redraw.
 
 On Windows the player's window opens behind the terminal: Windows grants
 focus only to the process owning the foreground window, and inside a
 terminal that is the terminal host, not nvim.exe.
 
-docs/ROADMAP.md has the two approaches that would move that line, and what
-each would cost.
+hover.nvim moves that line as far as it goes from inside the editor: it
+asks for a run of stills through |media-api| and paints them as coloured
+blocks, with sound from an mpv this plugin drives over its JSON IPC socket.
+See its docs/FEATURES/VIDEO.md.
 
 ==============================================================================
 8. HEALTH                                                       *media-health*
