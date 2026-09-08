@@ -31,6 +31,7 @@
 --- media.is_video(path)              -- by extension, no process started
 --- media.probe(path, function(p, err) end)          -- duration, size, codecs
 --- media.frame(path, { at = "10%" }, function(png, err) end)  -- a still
+--- media.frames(path, { from = 0, count = 24 }, function(pngs, err) end)  -- a run
 --- media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
 --- media.play(path)                  -- hand it to a real player
 --- ```
@@ -98,6 +99,19 @@ end
 ---@return nil
 function M.frame(path, opts, callback)
   return require("media.core.frame").frame(path, opts, callback)
+end
+
+--- A run of stills out of `path`, in order, as PNGs on disk.
+---
+--- The decode half of playback: one ffmpeg pass produces the whole run, and
+--- the returned handle cancels it. This plugin still does not play anything —
+--- it now hands a consumer that can draw cells something to draw.
+---@param path string
+---@param opts Media.FramesOpts|nil
+---@param callback fun(pngs: string[]|nil, err: string|nil): nil
+---@return Media.Frames.Handle
+function M.frames(path, opts, callback)
+  return require("media.core.frames").frames(path, opts, callback)
 end
 
 --- A PNG contact sheet of `path` — the whole running time as one grid.
