@@ -77,13 +77,16 @@ before you press one.
 :Media play [path]      Hand the file to an external player (the configured
                         `player`, or the system default). Fire and forget.
 
-:Media window [path] [at=…]
+:Media window [path] [at=…] [screen=…]
                         Play in a real mpv window: video and sound, drawn by
                         mpv, no editor redraw in the loop. `at=` takes the
                         same forms as `:Media frame` and is passed to mpv's
-                        `--start`. Always mpv; the window is stopped at |:qa|.
-                        Size and behaviour are the `window` table — see
-                        |media-configuration|.
+                        `--start`. `screen=` is which display `--geometry`/
+                        `autofit` resolve against — mpv's own screen index;
+                        `mpv --screen=<n>` on its own finds which number is
+                        which monitor. Always mpv; the window is stopped at
+                        |:qa|. Size and behaviour are the `window` table —
+                        see |media-configuration|.
 
 :Media cache clear      Delete every rendered still.
 

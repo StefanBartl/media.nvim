@@ -75,4 +75,24 @@ return function(H)
     player.args({ mpv = "mpv", path = "/tmp/c.mp4", extra = { "--loop", "--speed=1.5" } })
   H.ok(H.index_of(extra, "--loop"), "an extra arg is appended")
   H.before(extra, "--speed=1.5", "--", "extra args precede the file separator")
+
+  -- `screen` is what `--geometry`'s and `--autofit-larger`'s percentages
+  -- resolve against: without it both key off whatever mpv treats as screen
+  -- 0, which on a multi-monitor machine is not necessarily the one a caller
+  -- (hover.nvim, matching the monitor a hover was played from) meant.
+  local screened =
+    player.args({ mpv = "mpv", path = "/tmp/c.mp4", screen = 1, autofit = "80%x80%" })
+  H.ok(H.index_of(screened, "--screen=1"), "the target screen is passed through")
+  H.before(
+    screened,
+    "--screen=1",
+    "--geometry=50%:50%",
+    "the screen is named before geometry resolves against it"
+  )
+  local unscreened = player.args({ mpv = "mpv", path = "/tmp/c.mp4" })
+  local has_screen = false
+  for _, a in ipairs(unscreened) do
+    if a:match("^%-%-screen=") then has_screen = true end
+  end
+  H.falsy(has_screen, "no screen given, no --screen -- mpv's own default applies")
 end

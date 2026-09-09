@@ -161,12 +161,18 @@ controllable window needs the same binary every time.
 - **`args`** is appended verbatim just before the file: `--loop`, `--speed=1.5`,
   a `--profile`, an `--sub-file` — anything mpv takes.
 
+`screen` is not a `window` config key — it is a per-call `play_window` option,
+because it names *where the caller currently is*, not a standing preference.
+It picks which display `autofit`'s and `--geometry`'s percentages resolve
+against; without it both key off whatever mpv treats as screen 0. Added for
+`hover.nvim`'s `<CR>`, which asks its own terminal window's monitor first.
+
 ```lua
 window = { autofit = "60%x60%", ontop = false, args = { "--loop" } }
 ```
 
 ```lua
-local handle = require("media").play_window(path, { at = 90, mute = true })
+local handle = require("media").play_window(path, { at = 90, mute = true, screen = 1 })
 if not handle then return end -- no mpv — never an error
 handle.stop()                  -- ends the window and its process tree; idempotent
 ```
