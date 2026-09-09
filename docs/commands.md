@@ -77,12 +77,15 @@ stills from its first second.
 Hands the file to the configured `player`, or to the system's default handler.
 Fire and forget — this plugin does not own the window and does not stop it.
 
-## `:Media window [path] [at=…]`
+## `:Media window [path] [at=…] [screen=…]`
 
 Opens the file in a **real mpv window** — video and sound, drawn by mpv with the
 GPU, no editor redraw in the loop. `at` is where playback starts: a number of
 seconds, a percentage (`50%`), or an ffmpeg timestamp (`00:01:23`), passed
-straight to mpv's own `--start`.
+straight to mpv's own `--start`. `screen` is which display mpv's `--geometry`
+(and `autofit`) percentages resolve against — mpv's own screen index, not
+necessarily the one this Neovim happens to be on; try `mpv --screen=<n>` on
+its own against a test file to find which number is which monitor.
 
 Unlike `:Media play` this is always mpv, and the window is stopped at `:qa` even
 if you never close it. The window is `--ontop` by default because a window

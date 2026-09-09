@@ -236,13 +236,16 @@ function M.register()
       {
         path = { "window" },
         args = path_arg,
-        kv = { { key = "at", type = "STRING" } },
-        desc = "Play in an mpv window  :Media window [path] [at=90]",
+        kv = { { key = "at", type = "STRING" }, { key = "screen", type = "STRING" } },
+        desc = "Play in an mpv window  :Media window [path] [at=90] [screen=1]",
         run = function(ctx)
           local path = require_path(ctx, "Media window")
           if not path then return end
           local kv = ctx.kv or {}
-          M.run("window", path, { at = kv.at and (tonumber(kv.at) or kv.at) or nil })
+          M.run("window", path, {
+            at = kv.at and (tonumber(kv.at) or kv.at) or nil,
+            screen = kv.screen and tonumber(kv.screen) or nil,
+          })
         end,
       },
 

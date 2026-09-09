@@ -174,6 +174,7 @@
 ---@field autofit string|nil    # override `config.window.autofit` for this one window
 ---@field ontop boolean|nil     # override `config.window.ontop` for this one window
 ---@field mute boolean|nil      # start with sound off (the picture still plays)
+---@field screen integer|nil    # which display `--geometry`/`--autofit-larger` resolve against; nil leaves it to mpv's own default (usually screen 0)
 
 --- What `media.play_window` hands back: a real mpv window, and the means to
 --- end it. `stop()` is idempotent and ends the whole process tree — on Windows

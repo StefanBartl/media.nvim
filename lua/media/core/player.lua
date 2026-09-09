@@ -105,7 +105,12 @@ end
 ---   them, mpv does.
 --- - `--title` names the window for the file, so a taskbar with three of them
 ---   is legible.
----@param spec { mpv: string, path: string, at?: number|string, autofit?: string, ontop?: boolean, mute?: boolean, extra?: string[] }
+--- - `--screen` picks which display `--geometry`'s percentages (and
+---   `--autofit-larger`'s) resolve against — without it both key off whatever
+---   mpv treats as screen 0, which on a multi-monitor machine is not
+---   necessarily the one the caller is even looking at. A caller with no
+---   opinion about the screen passes nothing, and mpv's own default applies.
+---@param spec { mpv: string, path: string, at?: number|string, autofit?: string, ontop?: boolean, mute?: boolean, screen?: integer, extra?: string[] }
 ---@return string[]
 function M.args(spec)
   local argv = {
@@ -117,11 +122,13 @@ function M.args(spec)
     "--title=media.nvim — ${filename}",
   }
   if spec.ontop ~= false then argv[#argv + 1] = "--ontop" end
+  if type(spec.screen) == "number" then argv[#argv + 1] = ("--screen=%d"):format(spec.screen) end
   if type(spec.autofit) == "string" and spec.autofit ~= "" then
     -- `-larger`: shrink an oversized video to fit, never enlarge a small one
     -- past its own pixels, where scaling would only add blur.
     argv[#argv + 1] = ("--autofit-larger=%s"):format(spec.autofit)
-    -- Centre the window rather than let the platform place it at a corner.
+    -- Centre the window rather than let the platform place it at a corner --
+    -- on whichever screen `--screen` above named, when it named one.
     argv[#argv + 1] = "--geometry=50%:50%"
   end
   if spec.mute then argv[#argv + 1] = "--mute=yes" end
@@ -165,6 +172,7 @@ function M.start(path, opts)
     autofit = opts.autofit ~= nil and opts.autofit or window.autofit,
     ontop = opts.ontop ~= nil and opts.ontop or window.ontop,
     mute = opts.mute == true,
+    screen = type(opts.screen) == "number" and opts.screen or nil,
     extra = type(window.args) == "table" and window.args or nil,
   })
 
