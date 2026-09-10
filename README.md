@@ -1,4 +1,4 @@
-> **Beta stage — active development.** This repository is past its first shape and in
+**Beta stage — active development.** This repository is past its first shape and in
 > active use, but the surface is not frozen: breaking changes are still possible. Pin a
 > commit or tag if you depend on it.
 
@@ -20,16 +20,6 @@
 ![Status](https://img.shields.io/badge/status-beta-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 [![CI](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml)
-
-**What is in this media file, and one picture of it.** `ffprobe` says how long,
-how big and in which codec; `ffmpeg` produces a poster frame or a contact sheet
-as a PNG on disk. Anything that can draw a picture can then show a video.
-
-Neovim's ecosystem can draw an image and can read a PDF, and both of those are
-somebody's plugin already. Nothing turned a video into either — so a `.mp4`
-under the cursor was, everywhere, a size in bytes and the word "binary".
-
----
 
 ## Table of contents
 
