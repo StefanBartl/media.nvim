@@ -4,7 +4,11 @@ What is where, and which question each page answers.
 
 | Page | Answers |
 | --- | --- |
-| [installation.md](installation.md) | What has to be installed, and which load trigger to use. |
+| [installation.md](installation.md) | Requirements, what has to be installed, and which load trigger to use. |
+| [quickstart.md](quickstart.md) | The first thing to run after installing. |
+| [what-you-get.md](what-you-get.md) | The default keymaps and commands at a glance. |
+| [scope.md](scope.md) | What it does, in three answers, and what it deliberately does not do. |
+| [api.md](api.md) | The Lua surface another plugin consumes. |
 | [configuration.md](configuration.md) | Every `setup()` key, its default, and why that default. |
 | [commands.md](commands.md) | Every `:Media` route and its arguments. |
 | [BINDINGS.md](BINDINGS.md) | Keymaps, commands and autocommands at a glance. |
@@ -15,6 +19,4 @@ The reasoning behind each module lives in the module's own header comment —
 `lua/media/core/frame.lua` explains why `-ss` goes before `-i`, and that is the
 right place for it, not a documentation page that drifts from the code.
 
-The public API another plugin consumes is documented in
-[the README](../README.md#for-plugin-authors) and annotated in
-`lua/media/init.lua`.
+[api.md](api.md) is annotated in `lua/media/init.lua` too, so the two cannot drift.
