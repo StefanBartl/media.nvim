@@ -7,3 +7,6 @@ docs/map/
 # Editor and OS noise.
 .DS_Store
 *.swp
+
+# Generated :helptags index (regenerate with :helptags doc/).
+doc/tags
