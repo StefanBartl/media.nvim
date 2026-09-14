@@ -9,6 +9,7 @@ require("media").setup({
   timeout_ms = 15000,
   frame = { at = "10%", width = 800 },
   sheet = { rows = 3, cols = 4, width = 1200, margin = 4, timeout_ms = 120000 },
+  waveform = { width = 1200, height = 300, colors = "#9cdcfe", timeout_ms = 120000 },
   cache = { enabled = true, dir = nil },
   player = nil,
   window = { autofit = "80%x80%", ontop = true, args = {} },
@@ -106,6 +107,26 @@ The sheet has its own timeout because it is a categorically different operation:
 a poster frame is a seek, a sheet is a pass over the whole file. Files longer
 than two minutes are decoded from keyframes only, which makes that pass seconds
 rather than minutes and costs nothing at that length.
+
+## `waveform`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `waveform.width` | `integer` | `1200` |
+| `waveform.height` | `integer` | `300` |
+| `waveform.colors` | `string` | `"#9cdcfe"` |
+| `waveform.timeout_ms` | `integer` | `120000` |
+
+Backs both `media.waveform()`/`:Media waveform` and
+`media.spectrogram()`/`:Media spectrogram` — `showwavespic` and
+`showspectrumpic` differ only in which picture ffmpeg draws, not in how the
+process is run or cached. `colors` is `showwavespic`'s own argument and is
+ignored for a spectrogram; it is always passed explicitly because ffmpeg's own
+default (white) draws invisibly against a light terminal background.
+
+Same reasoning as `sheet.timeout_ms` for the ceiling: both filters read every
+sample of the file once rather than seek, so this is not the interactive
+`timeout_ms`.
 
 ## `cache`
 

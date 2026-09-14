@@ -115,6 +115,30 @@ return {
     timeout_ms = 120000,
   },
 
+  --- The waveform / spectrogram picture — visual shorthand for an audio
+  --- file (or a video's soundtrack) the way a poster frame is for the
+  --- picture. One ffmpeg pass over the whole file, same shape as `sheet`.
+  waveform = {
+    --- Width of the finished picture, in pixels.
+    ---@type integer
+    width = 1200,
+    ---@type integer
+    height = 300,
+
+    --- `showwavespic`'s own `colors` argument — ignored by the spectrogram,
+    --- which has no equivalent knob here. Left unset, ffmpeg defaults to
+    --- white, which draws invisibly against a light terminal background, so
+    --- a colour is always passed rather than inherited from ffmpeg.
+    ---@type string
+    colors = "#9cdcfe",
+
+    --- Same reasoning as `sheet.timeout_ms`: both filters read the whole
+    --- file once rather than seek, so this gets its own, longer ceiling
+    --- instead of sharing the interactive `timeout_ms`.
+    ---@type integer
+    timeout_ms = 120000,
+  },
+
   --- Where rendered stills live.
   ---
   --- On disk and outliving the session, for the same reason `images.nvim`

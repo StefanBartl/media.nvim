@@ -36,6 +36,8 @@
 --- media.frame(path, { at = "10%" }, function(png, err) end)  -- a still
 --- media.frames(path, { from = 0, count = 24 }, function(pngs, err) end)  -- a run
 --- media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
+--- media.waveform(path, {}, function(png, err) end)
+--- media.spectrogram(path, {}, function(png, err) end)
 --- media.play(path)                  -- hand it to a real player
 --- media.audio(path, { at = 0 }, function(handle, err) end)  -- sound for a played run
 --- ```
@@ -125,6 +127,27 @@ end
 ---@return nil
 function M.sheet(path, opts, callback)
   return require("media.core.sheet").sheet(path, opts, callback)
+end
+
+--- A PNG waveform of `path`'s audio — the sound equivalent of `frame`, for
+--- when there is no picture to show (an mp3 without cover art, a video whose
+--- track matters more than its poster frame).
+---@param path string
+---@param opts Media.WaveformOpts|nil
+---@param callback fun(png: string|nil, err: string|nil): nil
+---@return nil
+function M.waveform(path, opts, callback)
+  return require("media.core.waveform").waveform(path, opts, callback)
+end
+
+--- A PNG spectrogram of `path`'s audio — same shape as `waveform`, a
+--- different question answered (what frequencies are in this clip).
+---@param path string
+---@param opts Media.WaveformOpts|nil
+---@param callback fun(png: string|nil, err: string|nil): nil
+---@return nil
+function M.spectrogram(path, opts, callback)
+  return require("media.core.waveform").spectrogram(path, opts, callback)
 end
 
 --- Hand `path` to a real player — the configured one, or the system's.

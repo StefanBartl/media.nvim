@@ -11,6 +11,7 @@
 ---@field timeout_ms integer
 ---@field frame Media.Config.Frame
 ---@field sheet Media.Config.Sheet
+---@field waveform Media.Config.Waveform
 ---@field cache Media.Config.Cache
 ---@field player string|string[]|nil
 ---@field window Media.Config.Window
@@ -39,6 +40,12 @@
 ---@field cols integer
 ---@field width integer
 ---@field margin integer
+---@field timeout_ms integer
+
+---@class Media.Config.Waveform
+---@field width integer
+---@field height integer
+---@field colors string  # `showwavespic`'s own argument; ignored for a spectrogram
 ---@field timeout_ms integer
 
 ---@class Media.Config.Cache
@@ -72,6 +79,7 @@
 ---@field timeout_ms? integer
 ---@field frame? Media.Opts.Frame
 ---@field sheet? Media.Opts.Sheet
+---@field waveform? Media.Opts.Waveform
 ---@field cache? Media.Opts.Cache
 ---@field player? string|string[]
 ---@field window? Media.Opts.Window
@@ -91,6 +99,12 @@
 ---@field cols? integer
 ---@field width? integer
 ---@field margin? integer
+---@field timeout_ms? integer
+
+---@class Media.Opts.Waveform
+---@field width? integer
+---@field height? integer
+---@field colors? string
 ---@field timeout_ms? integer
 
 ---@class Media.Opts.Cache
@@ -154,6 +168,11 @@
 ---@field cols integer|nil
 ---@field width integer|nil     # width of the whole sheet
 ---@field margin integer|nil
+
+---@class Media.WaveformOpts
+---@field width integer|nil     # default `waveform.width`
+---@field height integer|nil    # default `waveform.height`
+---@field colors string|nil     # `showwavespic` only; ignored by `spectrogram`. default `waveform.colors`
 
 ---@class Media.AudioOpts
 ---@field at number|nil  # seconds into the file to start from; default 0

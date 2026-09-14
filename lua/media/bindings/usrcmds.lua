@@ -64,7 +64,7 @@ end
 
 --- Perform one action on one path. The single body behind both the commands and
 --- the keymaps.
----@param action "probe"|"frame"|"sheet"|"play"|"window"
+---@param action "probe"|"frame"|"sheet"|"waveform"|"spectrogram"|"play"|"window"
 ---@param path string
 ---@param opts table|nil  # forwarded to frame/sheet/window
 ---@return nil
@@ -96,13 +96,18 @@ function M.run(action, path, opts)
     return
   end
 
-  if action == "frame" or action == "sheet" then
+  if action == "frame" or action == "sheet" or action == "waveform" or action == "spectrogram" then
     -- Said before the render rather than after it: a contact sheet of a long
     -- file takes seconds, and silence in that window reads as "the key did
     -- nothing" — which is exactly when a second press starts a second render.
     say(("rendering %s…"):format(action))
-    local render = action == "frame" and require("media").frame or require("media").sheet
-    render(path, opts, function(png, err)
+    local renderers = {
+      frame = require("media").frame,
+      sheet = require("media").sheet,
+      waveform = require("media").waveform,
+      spectrogram = require("media").spectrogram,
+    }
+    renderers[action](path, opts, function(png, err)
       if not png then
         say(err or (action .. " failed"), vim.log.levels.ERROR)
         return
@@ -224,6 +229,38 @@ function M.register()
       },
 
       {
+        path = { "waveform" },
+        args = path_arg,
+        kv = { { key = "width", type = "STRING" }, { key = "height", type = "STRING" } },
+        desc = "Waveform picture  :Media waveform [path] [width=1200] [height=300]",
+        run = function(ctx)
+          local path = require_path(ctx, "Media waveform")
+          if not path then return end
+          local kv = ctx.kv or {}
+          M.run("waveform", path, {
+            width = positive_int(kv.width),
+            height = positive_int(kv.height),
+          })
+        end,
+      },
+
+      {
+        path = { "spectrogram" },
+        args = path_arg,
+        kv = { { key = "width", type = "STRING" }, { key = "height", type = "STRING" } },
+        desc = "Spectrogram picture  :Media spectrogram [path] [width=1200] [height=300]",
+        run = function(ctx)
+          local path = require_path(ctx, "Media spectrogram")
+          if not path then return end
+          local kv = ctx.kv or {}
+          M.run("spectrogram", path, {
+            width = positive_int(kv.width),
+            height = positive_int(kv.height),
+          })
+        end,
+      },
+
+      {
         path = { "play" },
         args = path_arg,
         desc = "Play in an external player  :Media play [path]",
@@ -293,7 +330,17 @@ function M.register_fallback()
       if line:match("^%s*Media%s+%S*$") then
         return vim.tbl_filter(function(name)
           return name:find(arg_lead, 1, true) == 1
-        end, { "probe", "frame", "sheet", "play", "window", "cache", "health" })
+        end, {
+          "probe",
+          "frame",
+          "sheet",
+          "waveform",
+          "spectrogram",
+          "play",
+          "window",
+          "cache",
+          "health",
+        })
       end
       return complete_media_path(arg_lead)
     end,

@@ -74,6 +74,16 @@ before you press one.
                         Render a grid of stills spread evenly over the
                         running time. Default: 3x4 at 1200px.
 
+:Media waveform [path] [width=…] [height=…]
+                        Render a waveform picture of the audio and show it —
+                        the sound equivalent of `:Media frame`. Needs an
+                        audio stream. Default: 1200x300.
+
+:Media spectrogram [path] [width=…] [height=…]
+                        Same shape as `:Media waveform`, a different
+                        question answered: frequency content rather than
+                        loudness. Default: 1200x300.
+
 :Media play [path]      Hand the file to an external player (the configured
                         `player`, or the system default). Fire and forget.
 
@@ -117,6 +127,8 @@ Rebind or disable individually through `keymaps` — see
       frame = { at = "10%", width = 800 },
       sheet = { rows = 3, cols = 4, width = 1200, margin = 4,
                 timeout_ms = 120000 },
+      waveform = { width = 1200, height = 300, colors = "#9cdcfe",
+                   timeout_ms = 120000 },
       cache = { enabled = true, dir = nil },
       player = nil,
       keymaps = {
@@ -145,6 +157,14 @@ frame.at                   10% rather than 0 because the first frame of a
 sheet.timeout_ms           Its own, because a sheet is a pass over the whole
                            file where a frame is a seek. Files over two
                            minutes are decoded from keyframes only.
+
+waveform.colors            `showwavespic`'s own argument; ignored by the
+                           spectrogram. Always passed explicitly -- ffmpeg's
+                           own default (white) draws invisibly against a
+                           light terminal background.
+
+waveform.timeout_ms        Same reasoning as sheet.timeout_ms: a waveform
+                           reads every sample of the file once, not a seek.
 
 cache.dir                  nil means stdpath("cache")/media.nvim. The key
                            carries the source file's mtime, so entries never
