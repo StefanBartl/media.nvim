@@ -30,6 +30,7 @@ local specs = {
   "frame_args_spec.lua",
   "frames_args_spec.lua",
   "sheet_args_spec.lua",
+  "waveform_args_spec.lua",
   "audio_args_spec.lua",
   "player_args_spec.lua",
   "proc_spec.lua",

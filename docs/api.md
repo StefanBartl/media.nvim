@@ -20,6 +20,8 @@ media.frame(path, { at = "10%", width = 800 }, function(png, err)
 end)
 
 media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
+media.waveform(path, {}, function(png, err) end)                     -- sound equivalent of a poster frame
+media.spectrogram(path, {}, function(png, err) end)                  -- same shape, frequency content instead
 media.play(path)                                                     -- hand off to the configured / system player
 
 media.frames(path, { count = 24, fps = 12 }, function(pngs, err) end)  -- a run, for block-graphics playback

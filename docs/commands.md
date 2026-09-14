@@ -72,6 +72,31 @@ Renders a grid of stills spread evenly over the running time.
 Needs a duration; a file that reports none says so instead of producing twelve
 stills from its first second.
 
+## `:Media waveform [path] [width=…] [height=…]`
+
+Renders a waveform picture of the file's audio and shows it — the sound
+equivalent of `:Media frame`, for a file with nothing to show a poster frame
+of (an mp3 without cover art, say).
+
+| Argument | Takes | Default |
+| --- | --- | --- |
+| `width=` | pixels | `1200` |
+| `height=` | pixels | `300` |
+
+Needs an audio stream; a file without one says so instead of producing a
+blank picture. Reads the whole file once, like `:Media sheet` — there is no
+seek to make this cheap, so it is cached the same way and for the same reason.
+
+## `:Media spectrogram [path] [width=…] [height=…]`
+
+Same shape as `:Media waveform`, a different question answered: what
+frequencies are in this clip rather than how loud it is at each moment.
+
+| Argument | Takes | Default |
+| --- | --- | --- |
+| `width=` | pixels | `1200` |
+| `height=` | pixels | `300` |
+
 ## `:Media play [path]`
 
 Hands the file to the configured `player`, or to the system's default handler.
