@@ -152,6 +152,15 @@ function M.show_probe(path)
   end)
 end
 
+--- Show arbitrary text in a scratch window — a transcript, mainly, where the
+--- record is prose rather than the field-per-line shape `show_probe` prints.
+---@param text string
+---@param title string
+---@return nil
+function M.show_text(text, title)
+  scratch(vim.split(text, "\n", { plain = true }), title)
+end
+
 --- Show a rendered PNG, by whatever means are installed.
 ---@param png string
 ---@return nil

@@ -41,9 +41,11 @@ subcommand and every path argument completes with `<Tab>`.
 | `:Media sheet [path] [rows=…] [cols=…] [width=…]` | render and show a contact sheet |
 | `:Media waveform [path] [width=…] [height=…]` | render and show a waveform picture |
 | `:Media spectrogram [path] [width=…] [height=…]` | render and show a spectrogram |
+| `:Media transcribe [path] [engine=] [lang=] [task=] [out=]` | speech to text — a buffer or a `.transcript.md` sidecar |
+| `:Media engines` | list registered transcription engines and their availability |
 | `:Media play [path]` | hand the file to an external player |
 | `:Media window [path] [at=…]` | play in a real mpv window, from `at` |
-| `:Media cache clear` | delete every rendered still |
+| `:Media cache clear` | delete every rendered still, WAV and cached transcript |
 | `:Media health` | `:checkhealth media` |
 
 `at=` takes seconds (`at=27.5`), a percentage of the duration (`at=50%`) or a

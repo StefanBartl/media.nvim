@@ -1,6 +1,6 @@
 # What it does and what not
 
-Three answers, and nothing else.
+A handful of answers, and nothing else.
 
 | | |
 | --- | --- |
@@ -8,6 +8,8 @@ Three answers, and nothing else.
 | **Poster frame** | One still, seeked to a configurable offset, scaled and cached as a PNG. |
 | **Contact sheet** | The whole running time as a grid of stills — one render, one picture, no playback. |
 | **Frame run** | A stretch of the file as a numbered sequence of stills, one ffmpeg pass, cancellable — what a consumer that can draw cells turns into moving picture. |
+| **Waveform / spectrogram** | A picture of the audio track — the sound equivalent of a poster frame, for a file (an mp3 without cover art) that has no picture to show one of. |
+| **Speech to text** | `media.transcribe()` / `:Media transcribe` — probe, extract a WAV, run it through a local transcription engine (`whisper.cpp`, phase 0 — one engine, no SRT/VTT export yet), deliver a buffer or a `.transcript.md` sidecar. See [commands.md](commands.md#media-transcribe-path-engine-lang-task-out). |
 
 Three details are the reason this is a plugin rather than a `vim.system` call in
 your config:

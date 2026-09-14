@@ -57,17 +57,18 @@ function M.key(kind, path, mtime, parts)
   return vim.fn.sha256(table.concat(fields, ":"))
 end
 
---- Where the PNG for this rendering lives, whether or not it exists yet.
+--- Where the rendering for this key lives, whether or not it exists yet.
 ---@param kind string
 ---@param path string
 ---@param parts (string|number)[]
+---@param ext string|nil  # "png" (default), "wav", "json", …
 ---@return string|nil out
 ---@return string|nil err
-function M.file(kind, path, parts)
+function M.file(kind, path, parts, ext)
   local stat = uv.fs_stat(path)
   if not stat then return nil, "no such file: " .. path end
   local key = M.key(kind, path, stat.mtime and stat.mtime.sec or 0, parts)
-  return M.dir() .. "/" .. key .. ".png", nil
+  return M.dir() .. "/" .. key .. "." .. (ext or "png"), nil
 end
 
 ---@type table<string, (fun(png: string|nil, err: string|nil))[]> keyed by output path
@@ -122,7 +123,15 @@ function M.ensure(out, render, callback)
   end)
 end
 
---- Delete every rendered still.
+--- Extensions this cache is allowed to remove — every shape a rendering here
+--- can take. An allowlist rather than "everything in the directory", even
+--- though nothing else is meant to write there, for the same reason `M.file`
+--- takes an explicit `ext`: a typo in a future caller should not turn
+--- `:Media cache clear` into a directory wipe.
+---@type table<string, true>
+local CACHED_EXTENSIONS = { png = true, wav = true, json = true }
+
+--- Delete every rendered still, converted audio track and cached transcript.
 ---@return integer removed
 function M.clear()
   local dir = M.dir()
@@ -132,7 +141,8 @@ function M.clear()
   while true do
     local name, kind = uv.fs_scandir_next(handle)
     if not name then break end
-    if kind == "file" and name:match("%.png$") then
+    local ext = name:match("%.([^.]+)$")
+    if kind == "file" and ext and CACHED_EXTENSIONS[ext] then
       if uv.fs_unlink(dir .. "/" .. name) then removed = removed + 1 end
     end
   end

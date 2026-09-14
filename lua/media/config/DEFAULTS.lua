@@ -21,6 +21,11 @@ return {
     --- "not on PATH", and `media.audio.available()` says so; nothing that
     --- shows a video fails over it, playback is just silent.
     mpv = nil,
+    --- whisper.cpp's CLI binary, behind `media.transcribe`. `nil` means "not
+    --- on PATH"; `:checkhealth media` says so, and nothing that shows a video
+    --- or a picture fails over it — transcription is the one feature that
+    --- needs it.
+    ["whisper-cli"] = nil,
   },
 
   --- Hard ceiling on any one `ffmpeg`/`ffprobe` run, in milliseconds.
@@ -137,6 +142,67 @@ return {
     --- instead of sharing the interactive `timeout_ms`.
     ---@type integer
     timeout_ms = 120000,
+  },
+
+  --- Turning speech into text — the transcription half of this plugin
+  --- (ROADMAP.md's "Transcription" section). Phase 0: one engine
+  --- (`whisper_cpp`), buffer and sidecar output; the fallback chain, more
+  --- engines and SRT/VTT export are later phases.
+  transcribe = {
+    --- Which registered engine `media.transcribe` tries first.
+    ---@type string
+    engine = "whisper_cpp",
+
+    --- Tried in order after `engine`, when it reports itself unavailable.
+    --- Empty for now: phase 0 ships exactly one engine, so there is nothing
+    --- yet to fall back to — this is where `faster_whisper`/`openai_api`
+    --- join in a later phase.
+    ---@type string[]
+    fallback = {},
+
+    --- Forced language (an ISO 639-1 code, e.g. `"en"`), or `nil` to let the
+    --- engine detect it.
+    ---@type string|nil
+    lang = nil,
+
+    --- `"transcribe"` keeps the source language; `"translate"` asks the
+    --- engine for English, the only target language an engine like
+    --- whisper.cpp can produce directly. Every other target language goes
+    --- through language.nvim afterwards — see ROADMAP.md's "Transcription"
+    --- section for why that split is not a preference but where the
+    --- capability actually lives.
+    ---@type "transcribe"|"translate"
+    task = "transcribe",
+
+    --- Where a finished transcript goes when the caller does not say.
+    ---@type "buffer"|"sidecar"
+    output = "buffer",
+
+    --- Cross-session cache, keyed like every other entry here by the source
+    --- file's mtime plus whatever engine/language/task produced it.
+    ---@type boolean
+    cache = true,
+
+    --- Ceiling on the transcription call itself. `0` disables it —
+    --- deliberately the default: an hour of audio is minutes of work, and
+    --- the 15 s interactive `timeout_ms` above would kill every real run.
+    ---@type integer
+    timeout_ms = 0,
+
+    --- Same reasoning as `sheet.timeout_ms`, for the WAV extraction step
+    --- that comes before the engine runs: a full read of the file, not a
+    --- seek, so it gets its own, longer ceiling.
+    ---@type integer
+    normalize_timeout_ms = 120000,
+
+    whisper_cpp = {
+      --- Absolute path to a GGML model file (e.g. `ggml-base.en.bin`). `nil`
+      --- means "not configured" — `:checkhealth media` reports it rather
+      --- than this plugin ever guessing at, or downloading, a model; see
+      --- ROADMAP.md's "Risks and known traps".
+      ---@type string|nil
+      model = nil,
+    },
   },
 
   --- Where rendered stills live.

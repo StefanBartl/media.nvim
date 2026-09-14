@@ -40,6 +40,7 @@
 --- media.spectrogram(path, {}, function(png, err) end)
 --- media.play(path)                  -- hand it to a real player
 --- media.audio(path, { at = 0 }, function(handle, err) end)  -- sound for a played run
+--- media.transcribe(path, {}, function(transcript, err) end)  -- speech to text, see below
 --- ```
 ---
 --- Every callback runs exactly once and on the main loop, so it may touch the
@@ -56,6 +57,7 @@ local M = {}
 function M.setup(opts)
   require("media.config").setup(opts)
   require("media.bindings").setup()
+  require("media.engines").load_all()
 end
 
 --- Whether this plugin can do anything at all right now: both binaries found.
@@ -148,6 +150,32 @@ end
 ---@return nil
 function M.spectrogram(path, opts, callback)
   return require("media.core.waveform").spectrogram(path, opts, callback)
+end
+
+--- Turn `path`'s speech into text: probe it, extract a 16 kHz mono WAV, run
+--- it through the resolved transcription engine, and deliver the result as
+--- `opts.output` says (default `transcribe.output`) — a scratch buffer, or
+--- a `<file>.transcript.md` sidecar next to the source. Cached across
+--- sessions like every other rendering here.
+---
+--- **Phase 0**: one engine (`whisper_cpp`), no SRT/VTT export yet, no
+--- fallback chain configured by default. See ROADMAP.md's "Transcription"
+--- section for what is still open, and `media.engines.whisper_cpp`'s module
+--- header for what has and has not been verified against a real run.
+---@param path string
+---@param opts Media.TranscribeOpts|nil
+---@param callback fun(transcript: Media.Transcript|nil, err: string|nil): nil
+---@return Media.Transcribe.Handle
+function M.transcribe(path, opts, callback)
+  return require("media.core.dispatcher").transcribe(path, opts, callback)
+end
+
+--- Whether `media.transcribe` can be expected to produce anything right now:
+--- at least one registered engine reports itself available.
+---@return boolean
+function M.transcribe_available()
+  local ok, engine = pcall(require("media.core.resolver").resolve, nil)
+  return ok and engine ~= nil
 end
 
 --- Hand `path` to a real player — the configured one, or the system's.

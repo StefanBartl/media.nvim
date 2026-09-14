@@ -1,6 +1,6 @@
 # `:checkhealth media`
 
-Five sections, in the order things go wrong.
+Six sections, in the order things go wrong.
 
 ## `media.nvim: toolchain`
 
@@ -46,6 +46,21 @@ directory produces *"no frame was written"* from a renderer that ran perfectly.
 Unlike the toolchain section, `mpv` missing is `h_info`, not `h_err`: nothing
 here requires it, and everything that uses it degrades to exactly what it did
 before this existed.
+
+## `media.nvim: transcription`
+
+| Line | Means |
+| --- | --- |
+| `whisper-cli found: <path>` | `media.transcribe` can run, once a model is also configured |
+| `whisper-cli not found` | with the install pointer, and the `bin["whisper-cli"]` escape hatch — `media.transcribe`/`:Media transcribe` cannot run, never an error elsewhere |
+| `whisper.cpp model: <path>` | `transcribe.whisper_cpp.model` is set and the file exists |
+| `transcribe.whisper_cpp.model is set but the file does not exist` | a typo, or a model that was moved or never downloaded |
+| `no whisper.cpp model configured` | set `transcribe.whisper_cpp.model` to a GGML `.bin` file — never fetched automatically |
+
+Both the binary and the model are `h_info`/`h_warn`, never `h_err`: nothing
+else in this plugin needs either, and `media.transcribe` reports the same two
+reasons itself, in a message, the moment something actually asks for a
+transcript.
 
 ## `media.nvim: what is claimed`
 

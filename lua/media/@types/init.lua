@@ -12,6 +12,7 @@
 ---@field frame Media.Config.Frame
 ---@field sheet Media.Config.Sheet
 ---@field waveform Media.Config.Waveform
+---@field transcribe Media.Config.Transcribe
 ---@field cache Media.Config.Cache
 ---@field player string|string[]|nil
 ---@field window Media.Config.Window
@@ -30,6 +31,7 @@
 ---@field ffmpeg string|nil
 ---@field ffprobe string|nil
 ---@field mpv string|nil
+---@field ["whisper-cli"] string|nil  # `media.core.bin.find("whisper-cli")` reads this key
 
 ---@class Media.Config.Frame
 ---@field at number|string  # seconds, or a percentage of the duration ("10%")
@@ -47,6 +49,20 @@
 ---@field height integer
 ---@field colors string  # `showwavespic`'s own argument; ignored for a spectrogram
 ---@field timeout_ms integer
+
+---@class Media.Config.Transcribe
+---@field engine string
+---@field fallback string[]
+---@field lang string|nil
+---@field task "transcribe"|"translate"
+---@field output "buffer"|"sidecar"
+---@field cache boolean
+---@field timeout_ms integer  # 0 = no timeout
+---@field normalize_timeout_ms integer
+---@field whisper_cpp Media.Config.Transcribe.WhisperCpp
+
+---@class Media.Config.Transcribe.WhisperCpp
+---@field model string|nil  # absolute path to a GGML .bin model file
 
 ---@class Media.Config.Cache
 ---@field enabled boolean
@@ -80,6 +96,7 @@
 ---@field frame? Media.Opts.Frame
 ---@field sheet? Media.Opts.Sheet
 ---@field waveform? Media.Opts.Waveform
+---@field transcribe? Media.Opts.Transcribe
 ---@field cache? Media.Opts.Cache
 ---@field player? string|string[]
 ---@field window? Media.Opts.Window
@@ -89,6 +106,7 @@
 ---@field ffmpeg? string
 ---@field ffprobe? string
 ---@field mpv? string
+---@field ["whisper-cli"]? string
 
 ---@class Media.Opts.Frame
 ---@field at? number|string
@@ -106,6 +124,20 @@
 ---@field height? integer
 ---@field colors? string
 ---@field timeout_ms? integer
+
+---@class Media.Opts.Transcribe
+---@field engine? string
+---@field fallback? string[]
+---@field lang? string
+---@field task? "transcribe"|"translate"
+---@field output? "buffer"|"sidecar"
+---@field cache? boolean
+---@field timeout_ms? integer
+---@field normalize_timeout_ms? integer
+---@field whisper_cpp? Media.Opts.Transcribe.WhisperCpp
+
+---@class Media.Opts.Transcribe.WhisperCpp
+---@field model? string
 
 ---@class Media.Opts.Cache
 ---@field enabled? boolean
@@ -173,6 +205,64 @@
 ---@field width integer|nil     # default `waveform.width`
 ---@field height integer|nil    # default `waveform.height`
 ---@field colors string|nil     # `showwavespic` only; ignored by `spectrogram`. default `waveform.colors`
+
+--- One timed piece of a transcript. Mandatory on every engine's output, not
+--- optional: without it there is no SRT/VTT and no jumping back into the
+--- source at the point a line came from (ROADMAP.md, "the engine interface").
+--- An engine that cannot produce real timestamps returns one segment
+--- spanning the whole file — the shape stays uniform either way.
+---@class Media.Segment
+---@field s number  # start, seconds
+---@field e number  # end, seconds
+---@field text string
+
+--- What one engine run hands back.
+---@class Media.Transcript
+---@field engine string
+---@field model string|nil
+---@field lang string|nil       # detected, or forced by the caller
+---@field duration number|nil
+---@field segments Media.Segment[]
+---@field text string           # `segments` joined; the flat view a buffer or a sidecar shows
+
+---@class Media.EngineCapabilities
+---@field local_ boolean         # runs without a network call
+---@field remote boolean
+---@field segments boolean       # real per-segment timestamps, not one spanning segment
+---@field translate_to_en boolean  # the engine's own `task = "translate"` support
+
+--- What `media.core.registry.register` requires. Modelled on
+--- `pdfport.core.registry`'s `Backend`, the proven shape in this ecosystem.
+---@class Media.Engine
+---@field id string
+---@field name string
+---@field capabilities Media.EngineCapabilities
+---@field available fun(): boolean
+---@field transcribe fun(wav_path: string, opts: Media.Engine.TranscribeOpts, callback: fun(transcript: Media.Transcript|nil, err: string|nil): nil): Media.Engine.Job
+
+---@class Media.Engine.TranscribeOpts
+---@field lang string|nil
+---@field task "transcribe"|"translate"|nil
+---@field model string|nil
+
+--- What one engine call hands back so a caller can give up on it.
+--- `cancel()` is idempotent, and after it the callback never fires.
+---@class Media.Engine.Job
+---@field cancel fun(): nil
+
+--- What `media.transcribe` accepts.
+---@class Media.TranscribeOpts
+---@field engine string|nil     # default `transcribe.engine`
+---@field lang string|nil       # default `transcribe.lang`
+---@field task "transcribe"|"translate"|nil  # default `transcribe.task`
+---@field output "buffer"|"sidecar"|nil       # default `transcribe.output`
+---@field cache boolean|nil     # default `transcribe.cache`
+
+--- What `media.transcribe` hands back: a handle that gives up on the whole
+--- pipeline (WAV extraction, then the engine), not just whichever half is
+--- currently running.
+---@class Media.Transcribe.Handle
+---@field cancel fun(): nil
 
 ---@class Media.AudioOpts
 ---@field at number|nil  # seconds into the file to start from; default 0
