@@ -97,6 +97,37 @@ frequencies are in this clip rather than how loud it is at each moment.
 | `width=` | pixels | `1200` |
 | `height=` | pixels | `300` |
 
+## `:Media transcribe [path] [engine=] [lang=] [task=] [out=]`
+
+Turns `path`'s speech into text: probes it, extracts a 16 kHz mono WAV,
+runs it through the resolved engine, and delivers the result.
+
+| Argument | Takes | Default |
+| --- | --- | --- |
+| `engine=` | a registered engine id (`whisper_cpp` is the only one in phase 0) | `transcribe.engine` |
+| `lang=` | an ISO 639-1 code (`en`, `de`, …), or omit to let the engine detect it | `transcribe.lang` |
+| `task=` | `transcribe` (keep the source language) or `translate` (whisper.cpp's own English-only translate) | `transcribe.task` |
+| `out=` | `buffer` (a scratch window) or `sidecar` (`<file>.transcript.md`) | `transcribe.output` |
+
+Needs `whisper-cli` on PATH (or `bin["whisper-cli"]` configured) and
+`transcribe.whisper_cpp.model` set to a GGML `.bin` file — `:checkhealth
+media` says which, if either, is missing; neither is ever installed or
+downloaded automatically. Cached the same way every other rendering here is,
+keyed by the source file's mtime plus the engine/language/task that produced
+it — an edited file, a different engine or a different language each get
+their own entry.
+
+Every other target language than English goes through
+[language.nvim](https://github.com/StefanBartl/language.nvim) afterwards,
+not through this command — see ROADMAP.md's "Transcription" section for why
+that split is where the capability actually lives, not a preference.
+
+## `:Media engines`
+
+Lists every registered transcription engine and whether it currently reports
+itself available — the same check `:Media transcribe` makes before running
+one.
+
 ## `:Media play [path]`
 
 Hands the file to the configured `player`, or to the system's default handler.

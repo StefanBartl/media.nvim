@@ -7,7 +7,10 @@
 | `<leader>Ms` | normal | contact sheet |
 | `<leader>Mo` | normal | play in an external player |
 | `:Media [path]` | command | the same description, by name |
+| `:Media waveform [path]` / `:Media spectrogram [path]` | command | a picture of the audio track |
+| `:Media transcribe [path]` | command | speech to text — a buffer or a `.transcript.md` sidecar |
+| `:Media engines` | command | list transcription engines and their availability |
 | `:Media window [path] [at=]` | command | play in a real mpv window, from `at` |
-| `:Media cache clear` | command | throw the rendered stills away |
+| `:Media cache clear` | command | throw away every rendered still, WAV and cached transcript |
 
 The full set is the [bindings cheatsheet](BINDINGS.md).

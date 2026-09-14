@@ -62,9 +62,18 @@ local function say(message, level)
   vim.notify(message, level or vim.log.levels.INFO, { title = "media.nvim" })
 end
 
+---@internal
+---@param engine Media.Engine|nil
+---@return boolean
+local function engine_available(engine)
+  if not engine then return false end
+  local ok, avail = pcall(engine.available)
+  return ok and avail == true
+end
+
 --- Perform one action on one path. The single body behind both the commands and
 --- the keymaps.
----@param action "probe"|"frame"|"sheet"|"waveform"|"spectrogram"|"play"|"window"
+---@param action "probe"|"frame"|"sheet"|"waveform"|"spectrogram"|"transcribe"|"play"|"window"
 ---@param path string
 ---@param opts table|nil  # forwarded to frame/sheet/window
 ---@return nil
@@ -113,6 +122,30 @@ function M.run(action, path, opts)
         return
       end
       ui.show_image(png)
+    end)
+    return
+  end
+
+  if action == "transcribe" then
+    -- Transcription is minutes, not seconds (ROADMAP.md's "Risks and known
+    -- traps") — said up front for the same reason `frame`/`sheet` say
+    -- "rendering…" before starting, except here the silence it prevents
+    -- could otherwise read as the command having done nothing for a while.
+    say("transcribing…")
+    require("media").transcribe(path, opts, function(transcript, err)
+      if not transcript then
+        say(err or "transcription failed", vim.log.levels.ERROR)
+        return
+      end
+      local mode = (opts and opts.output) or require("media.config").get().transcribe.output
+      local ok, derr = require("media.output").deliver(path, transcript, mode)
+      if not ok then
+        say(derr or "could not deliver the transcript", vim.log.levels.ERROR)
+        return
+      end
+      if mode == "sidecar" then
+        say(("wrote %s"):format(require("media.output.sidecar").path(path)))
+      end
     end)
     return
   end
@@ -287,6 +320,52 @@ function M.register()
       },
 
       {
+        path = { "transcribe" },
+        args = path_arg,
+        kv = {
+          { key = "engine", type = "STRING" },
+          { key = "lang", type = "STRING" },
+          { key = "task", type = "STRING" },
+          { key = "out", type = "STRING" },
+        },
+        desc = "Speech to text  :Media transcribe [path] [engine=] [lang=] [task=transcribe|translate] [out=buffer|sidecar]",
+        run = function(ctx)
+          local path = require_path(ctx, "Media transcribe")
+          if not path then return end
+          local kv = ctx.kv or {}
+          M.run("transcribe", path, {
+            engine = kv.engine,
+            lang = kv.lang,
+            task = kv.task,
+            output = kv.out,
+          })
+        end,
+      },
+
+      {
+        path = { "engines" },
+        desc = "List registered transcription engines and their availability",
+        run = function()
+          require("media.engines").load_all()
+          local registry = require("media.core.registry")
+          local ids = registry.ids()
+          if #ids == 0 then
+            say("no transcription engines registered")
+            return
+          end
+          local lines = {}
+          for _, id in ipairs(ids) do
+            local engine = registry.get(id)
+            lines[#lines + 1] = ("%-14s %s"):format(
+              id,
+              engine_available(engine) and "available" or "unavailable"
+            )
+          end
+          say(table.concat(lines, "\n"))
+        end,
+      },
+
+      {
         path = { "cache", "clear" },
         desc = "Delete every rendered still",
         run = function()
@@ -319,6 +398,24 @@ function M.register_fallback()
       vim.cmd("checkhealth media")
       return
     end
+    if sub == "engines" then
+      require("media.engines").load_all()
+      local registry = require("media.core.registry")
+      local ids = registry.ids()
+      if #ids == 0 then
+        say("no transcription engines registered")
+        return
+      end
+      local lines = {}
+      for _, id in ipairs(ids) do
+        lines[#lines + 1] = ("%-14s %s"):format(
+          id,
+          engine_available(registry.get(id)) and "available" or "unavailable"
+        )
+      end
+      say(table.concat(lines, "\n"))
+      return
+    end
     if not path then
       say("Media: no file given, and none under the cursor", vim.log.levels.WARN)
       return
@@ -336,6 +433,8 @@ function M.register_fallback()
           "sheet",
           "waveform",
           "spectrogram",
+          "transcribe",
+          "engines",
           "play",
           "window",
           "cache",

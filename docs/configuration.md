@@ -5,11 +5,22 @@ to be useful on its own.
 
 ```lua
 require("media").setup({
-  bin = { ffmpeg = nil, ffprobe = nil, mpv = nil },
+  bin = { ffmpeg = nil, ffprobe = nil, mpv = nil, ["whisper-cli"] = nil },
   timeout_ms = 15000,
   frame = { at = "10%", width = 800 },
   sheet = { rows = 3, cols = 4, width = 1200, margin = 4, timeout_ms = 120000 },
   waveform = { width = 1200, height = 300, colors = "#9cdcfe", timeout_ms = 120000 },
+  transcribe = {
+    engine = "whisper_cpp",
+    fallback = {},
+    lang = nil,
+    task = "transcribe",
+    output = "buffer",
+    cache = true,
+    timeout_ms = 0,
+    normalize_timeout_ms = 120000,
+    whisper_cpp = { model = nil },
+  },
   cache = { enabled = true, dir = nil },
   player = nil,
   window = { autofit = "80%x80%", ontop = true, args = {} },
@@ -35,6 +46,7 @@ the summary.
 | `bin.ffmpeg` | `string\|nil` | `nil` |
 | `bin.ffprobe` | `string\|nil` | `nil` |
 | `bin.mpv` | `string\|nil` | `nil` |
+| `bin["whisper-cli"]` | `string\|nil` | `nil` |
 
 An explicit path, for the case where the binary is installed but not on PATH.
 The plugin probes winget's and scoop's shim directories, chocolatey's `bin`,
@@ -127,6 +139,40 @@ default (white) draws invisibly against a light terminal background.
 Same reasoning as `sheet.timeout_ms` for the ceiling: both filters read every
 sample of the file once rather than seek, so this is not the interactive
 `timeout_ms`.
+
+## `transcribe`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `transcribe.engine` | `string` | `"whisper_cpp"` |
+| `transcribe.fallback` | `string[]` | `{}` |
+| `transcribe.lang` | `string\|nil` | `nil` — let the engine detect it |
+| `transcribe.task` | `"transcribe"\|"translate"` | `"transcribe"` |
+| `transcribe.output` | `"buffer"\|"sidecar"` | `"buffer"` |
+| `transcribe.cache` | `boolean` | `true` |
+| `transcribe.timeout_ms` | `integer` | `0` — no timeout |
+| `transcribe.normalize_timeout_ms` | `integer` | `120000` |
+| `transcribe.whisper_cpp.model` | `string\|nil` | `nil` |
+
+Phase 0 (ROADMAP.md's "Transcription" section): one engine, no SRT/VTT
+export yet, `fallback` empty because there is nothing yet to fall back to.
+
+`timeout_ms` defaults to **no timeout**, deliberately — the interactive
+`timeout_ms` at the top of this file (15 s) would kill every real
+transcription; an hour of audio is minutes of work, not seconds.
+`normalize_timeout_ms` is separate and does have a default ceiling, for the
+WAV-extraction step that runs first: same reasoning as `sheet.timeout_ms`,
+a full read of the file rather than a seek.
+
+`whisper_cpp.model` is never set automatically and never downloaded — it has
+to be an absolute path to a GGML `.bin` file you already have.
+`:checkhealth media` reports whether `whisper-cli` is on PATH and whether
+this points at a file that exists, but never fetches one.
+
+`"translate"` asks whisper.cpp for its own translate task, which only ever
+produces **English**. Every other target language is
+[language.nvim](https://github.com/StefanBartl/language.nvim)'s job,
+downstream of this plugin, not a `task` value here.
 
 ## `cache`
 

@@ -27,6 +27,10 @@ media.play(path)                                                     -- hand off
 media.frames(path, { count = 24, fps = 12 }, function(pngs, err) end)  -- a run, for block-graphics playback
 media.audio(path, { at = 0 }, function(handle, err) end)              -- sound for that run — see media.audio_available()
 
+media.transcribe(path, {}, function(transcript, err)                  -- speech to text; see media.transcribe_available()
+  -- transcript.text, transcript.segments = { { s, e, text }, … }
+end)
+
 local handle = media.play_window(path, { at = 90 })                  -- a real mpv window; see media.player_available()
 -- handle.stop()  -- ends the window and its process tree; idempotent, and run for you at :qa
 ```
@@ -38,3 +42,10 @@ sometimes synchronous is the harder contract to write against.
 `require("media.ui").summary(probe)` returns the one-line form
 (`1920x1080 · 4:32 · h264 · 100 MB`) so two consumers do not invent two
 different words for the same file.
+
+`media.transcribe` hands back the `Media.Transcript` and nothing else — it
+does not write a buffer or a sidecar itself, the same division `media.frame`
+draws with `media.ui.show_image`. `:Media transcribe` (and its `out=`
+argument) is the thing that calls `require("media.output").deliver(path,
+transcript, "buffer"|"sidecar")`; a consumer wanting the same delivery calls
+it directly.

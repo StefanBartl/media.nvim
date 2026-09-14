@@ -21,10 +21,13 @@
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 [![CI](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml)
 
-**What is in this media file, and one picture of it.** `ffprobe` says how long,
-how big and in which codec; `ffmpeg` produces a poster frame or a contact sheet
-as a PNG on disk. Anything that can draw a picture can then show a video —
-which was, until now, everywhere just a size in bytes and the word "binary".
+**What is in this media file, one picture of it, and — a video or an audio
+file's speech, turned into text.** `ffprobe` says how long, how big and in
+which codec; `ffmpeg` produces a poster frame, a contact sheet or a waveform
+as a PNG on disk; a local transcription engine turns the speech in it into a
+buffer or a `.transcript.md` sidecar. Anything that can draw a picture can
+then show a video — which was, until now, everywhere just a size in bytes and
+the word "binary".
 
 ---
 

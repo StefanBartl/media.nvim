@@ -8,6 +8,7 @@
 | [lib.nvim](https://github.com/StefanBartl/lib.nvim) | required |
 | `ffmpeg` + `ffprobe` | required — one install, both binaries |
 | `mpv` | optional — sound for a played run, and `:Media window` / `media.play_window()` |
+| [whisper.cpp](https://github.com/ggml-org/whisper.cpp)'s `whisper-cli` + a GGML model | optional — `media.transcribe()` / `:Media transcribe` |
 
 ```bash
 winget install Gyan.FFmpeg          # Windows
@@ -19,6 +20,14 @@ winget install mpv-player.mpv       # Windows  — optional
 brew install mpv                    # macOS    — optional
 sudo apt install mpv                # Debian / Ubuntu — optional
 ```
+
+`whisper-cli` has no package-manager install on any platform this plugin
+targets — build it from [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
+(`cmake -B build && cmake --build build`) and download a GGML model
+separately (e.g. `ggml-base.en.bin`). Point `transcribe.whisper_cpp.model` at
+it; `bin["whisper-cli"]` only if the binary lands off PATH. Neither the
+binary nor a model is ever fetched by this plugin — `:checkhealth media`
+reports what is missing.
 
 After a Windows install, restart the terminal: winget and scoop extend the *user*
 PATH, and every already-running process inherited its copy at login. The plugin

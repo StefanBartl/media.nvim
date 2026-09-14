@@ -125,6 +125,34 @@ function M.check()
     )
   end
 
+  h_start("media.nvim: transcription")
+  local whisper_bin = require("media.core.bin").find("whisper-cli")
+  if whisper_bin then
+    h_ok("whisper-cli found: " .. whisper_bin)
+  else
+    h_info(
+      "whisper-cli not found — `media.transcribe`/`:Media transcribe` cannot run, never an error elsewhere"
+    )
+    h_info(
+      "install whisper.cpp and build `whisper-cli`, then set "
+        .. '`require("media").setup({ bin = { ["whisper-cli"] = "…" } })`'
+        .. " if it lands off PATH"
+    )
+  end
+  local model = require("media.config").get().transcribe.whisper_cpp.model
+  if type(model) == "string" and model ~= "" then
+    if (vim.uv or vim.loop).fs_stat(model) then
+      h_ok("whisper.cpp model: " .. model)
+    else
+      h_warn("`transcribe.whisper_cpp.model` is set but the file does not exist: " .. model)
+    end
+  else
+    h_info(
+      "no whisper.cpp model configured — set `transcribe.whisper_cpp.model` to a GGML .bin "
+        .. "file (never downloaded automatically)"
+    )
+  end
+
   h_start("media.nvim: what is claimed")
   local video, audio = require("media.formats").known()
   h_info(("video: %s"):format(table.concat(video, ", ")))

@@ -84,6 +84,18 @@ before you press one.
                         question answered: frequency content rather than
                         loudness. Default: 1200x300.
 
+:Media transcribe [path] [engine=] [lang=] [task=] [out=]
+                        Speech to text: probe, extract a 16 kHz mono WAV,
+                        run it through the resolved engine, deliver as a
+                        buffer or a `.transcript.md` sidecar (`out=`).
+                        Needs `whisper-cli` on PATH and
+                        `transcribe.whisper_cpp.model` set; neither is ever
+                        installed automatically. `:checkhealth media` says
+                        which is missing.
+
+:Media engines          List registered transcription engines and whether
+                        each reports itself available right now.
+
 :Media play [path]      Hand the file to an external player (the configured
                         `player`, or the system default). Fire and forget.
 
@@ -129,6 +141,12 @@ Rebind or disable individually through `keymaps` — see
                 timeout_ms = 120000 },
       waveform = { width = 1200, height = 300, colors = "#9cdcfe",
                    timeout_ms = 120000 },
+      transcribe = {
+        engine = "whisper_cpp", fallback = {}, lang = nil,
+        task = "transcribe", output = "buffer", cache = true,
+        timeout_ms = 0, normalize_timeout_ms = 120000,
+        whisper_cpp = { model = nil },
+      },
       cache = { enabled = true, dir = nil },
       player = nil,
       keymaps = {
@@ -165,6 +183,15 @@ waveform.colors            `showwavespic`'s own argument; ignored by the
 
 waveform.timeout_ms        Same reasoning as sheet.timeout_ms: a waveform
                            reads every sample of the file once, not a seek.
+
+transcribe.timeout_ms      0 (no timeout) by default -- an hour of audio is
+                           minutes of work, and the 15s interactive
+                           timeout_ms above would kill every real run.
+
+transcribe.whisper_cpp.model
+                           Absolute path to a GGML .bin file. Never set or
+                           downloaded automatically; :checkhealth media
+                           reports it missing rather than guessing.
 
 cache.dir                  nil means stdpath("cache")/media.nvim. The key
                            carries the source file's mtime, so entries never
@@ -203,6 +230,8 @@ The reasoning for every default is in lua/media/config/DEFAULTS.lua.
     media.audio(path, { at = 0 }, function(handle, err) end)
     media.audio_available()   -- mpv on PATH (or bin.mpv configured)?
     media.play_window(path, { at = 90 })  -- returns handle, err; a real mpv window
+    media.transcribe(path, {}, function(transcript, err) end)  -- speech to text
+    media.transcribe_available()  -- any registered engine available?
     media.player_available()  -- same check, for the windowed player
     media.clear_cache()       -- returns the number of files removed
 <
