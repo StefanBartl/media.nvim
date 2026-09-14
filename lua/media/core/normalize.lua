@@ -41,43 +41,72 @@ function M.args(spec)
 end
 
 --- A 16 kHz mono WAV of `path`'s audio, cached on disk.
+---
+--- Cancellable, like `frames()` — unlike `frame()`, which never needed a
+--- handle. A caller giving up on a transcription mid-normalize must be able
+--- to stop the ffmpeg process rather than let it run to completion for a
+--- result nobody reads; found missing in review, 2026-09-14.
 ---@param path string
 ---@param callback fun(wav: string|nil, err: string|nil): nil
----@return nil
+---@return Media.Transcribe.Handle
 function M.normalize(path, callback)
   local cfg = require("media.config").get()
+
+  local cancelled = false
+  ---@type vim.SystemObj|nil
+  local proc = nil
+  local handle = {
+    cancel = function()
+      cancelled = true
+      if proc then
+        pcall(function()
+          require("media.core.proc").stop(proc)
+        end)
+        proc = nil
+      end
+    end,
+  }
+
+  ---@param wav string|nil
+  ---@param err string|nil
+  local function finish(wav, err)
+    if cancelled then return end
+    callback(wav, err)
+  end
 
   local bin = require("media.core.bin").find("ffmpeg")
   if not bin then
     vim.schedule(function()
-      callback(nil, "ffmpeg not found — install it, or set `bin.ffmpeg`")
+      finish(nil, "ffmpeg not found — install it, or set `bin.ffmpeg`")
     end)
-    return
+    return handle
   end
 
   require("media.core.probe").probe(path, function(probe, perr)
+    if cancelled then return end
     if not probe then
-      callback(nil, perr)
+      finish(nil, perr)
       return
     end
     if not probe.has_audio then
-      callback(nil, "no audio stream in this file")
+      finish(nil, "no audio stream in this file")
       return
     end
 
     local out, cerr = require("media.core.cache").file("wav", path, {}, "wav")
     if not out then
-      callback(nil, cerr)
+      finish(nil, cerr)
       return
     end
 
     local argv = M.args({ ffmpeg = bin, path = path, out = out })
 
     require("media.core.cache").ensure(out, function(done)
-      vim.system(
+      proc = vim.system(
         argv,
         { text = true, timeout = cfg.transcribe.normalize_timeout_ms },
         function(result)
+          proc = nil
           if result.code ~= 0 then
             local stderr = (result.stderr or ""):gsub("%s+$", "")
             done(stderr ~= "" and stderr or ("ffmpeg exited with " .. tostring(result.code)))
@@ -86,8 +115,10 @@ function M.normalize(path, callback)
           done(nil)
         end
       )
-    end, callback)
+    end, finish)
   end)
+
+  return handle
 end
 
 return M

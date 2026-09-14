@@ -24,13 +24,19 @@ local M = {}
 --- Pure and public for the same reason `sheet.args` is: the ordering is the
 --- entire content of this function, and it should be assertable without a
 --- registered engine anywhere.
+---
+--- **An empty string is treated as "none given", not as a real id.** Lua's
+--- `or` sees `""` as truthy, so `requested or cfg.engine` alone would let a
+--- blank `:Media transcribe path engine=` silently try to resolve engine id
+--- `""` instead of falling back to the configured default — found in
+--- review, 2026-09-14.
 ---@param requested string|nil
 ---@return string[]
 function M.build_chain(requested)
   local cfg = require("media.config").get().transcribe
   local fallback = cfg.fallback or {}
 
-  local first = requested or cfg.engine
+  local first = (type(requested) == "string" and requested ~= "") and requested or cfg.engine
   local chain = { first }
   for i = 1, #fallback do
     if fallback[i] ~= first then chain[#chain + 1] = fallback[i] end
