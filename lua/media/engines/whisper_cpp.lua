@@ -164,14 +164,16 @@ function M.transcribe(wav_path, opts, callback)
     return job
   end
 
-  -- whisper.cpp appends the extension itself (`-of` is a prefix, `.json` is
-  -- added), and the WAV already ends in `.wav` — stripped so the prefix does
-  -- not read as `…wav.json`.
-  local out_prefix = (wav_path:gsub("%.wav$", ""))
+  -- A fresh, unique path per call — **not** derived from `wav_path`. Two
+  -- concurrent transcriptions of the same file (nothing above this engine
+  -- de-duplicates them) would otherwise compute the identical prefix, and
+  -- the second call's own cleanup below would delete the first call's
+  -- just-written result out from under it before it could be read — found
+  -- in review, 2026-09-14. `vim.fn.tempname()` is already this ecosystem's
+  -- way of getting a private scratch path (`pdfport.backends.tesseract`
+  -- uses it the same way for its own rasterised pages).
+  local out_prefix = vim.fn.tempname()
   local json_path = out_prefix .. ".json"
-  -- A leftover from a run that died mid-write would otherwise read as this
-  -- run's result; whisper.cpp has no `-y` of its own to make that explicit.
-  os.remove(json_path)
 
   local argv = M.args({
     bin = bin,
