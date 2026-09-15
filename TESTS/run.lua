@@ -21,10 +21,14 @@ package.path = table.concat({
   package.path,
 }, ";")
 
--- Order matters only at the end: smoke_spec calls setup(), which loads the
--- binding modules and registers a command. Everything before it asserts against
--- pure functions and must not depend on that having happened.
+-- Order matters at both ends: config_spec asserts about the state of
+-- `media.config` before anything has ever called `setup()`, so it has to run
+-- before any other spec that does (nearly all of them). At the other end,
+-- smoke_spec calls setup(), which loads the binding modules and registers a
+-- command; everything before it asserts against pure functions and must not
+-- depend on that having happened.
 local specs = {
+  "config_spec.lua",
   "formats_spec.lua",
   "probe_spec.lua",
   "frame_args_spec.lua",
@@ -42,6 +46,11 @@ local specs = {
   "proc_spec.lua",
   "cache_key_spec.lua",
   "ui_spec.lua",
+  "bin_spec.lua",
+  "play_spec.lua",
+  "engines_spec.lua",
+  "output_spec.lua",
+  "dispatcher_spec.lua",
   "smoke_spec.lua",
 }
 

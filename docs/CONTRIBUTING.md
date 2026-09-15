@@ -12,12 +12,28 @@ lua/media/
     DEFAULTS.lua        -- every default, with the reasoning next to it
     init.lua            -- merge and hand out
   core/
-    bin.lua             -- finding ffmpeg and ffprobe
+    bin.lua             -- finding ffmpeg, ffprobe, mpv, whisper-cli
     probe.lua           -- ffprobe JSON -> one flat record
     frame.lua           -- one still
+    frames.lua          -- a run of stills at a fixed rate -- the decode half of playback
     sheet.lua           -- a grid of stills
+    waveform.lua        -- a waveform or spectrogram picture of the audio track
+    audio.lua           -- an audio-only mpv, talked to over its JSON IPC
+    player.lua          -- a real mpv window, opened on a file and owned by its caller
     cache.lua           -- the on-disk store and the request coalescing
     play.lua            -- the handoff to a real player
+    proc.lua            -- stopping a spawned process -- which on Windows is not `kill`
+    normalize.lua       -- any file with sound, reduced to 16 kHz mono WAV
+    registry.lua        -- transcription engine registry
+    resolver.lua        -- engine selection and fallback-chain resolution
+    segments.lua        -- the timestamped transcript model, shared by every engine
+    dispatcher.lua      -- probe -> normalize -> transcribe -> cache, behind one cancellable call
+  engines/
+    init.lua            -- loads and registers every built-in transcription engine
+    whisper_cpp.lua     -- local transcription via whisper.cpp's `whisper-cli`
+  output/
+    init.lua            -- delivering a finished transcript: a buffer, or a sidecar file
+    sidecar.lua         -- `<file>.transcript.md`
   bindings/
     init.lua            -- one entry point, idempotent
     keymaps.lua         -- the four keys
