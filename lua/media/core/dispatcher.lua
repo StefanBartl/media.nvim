@@ -27,10 +27,19 @@ local uv = vim.uv or vim.loop
 local M = {}
 
 ---@internal
+--- `vim.json.encode` can throw (a transcript field that is not
+--- JSON-representable) — every other JSON round-trip in this codebase
+--- (`read_cached` below, `media.engines.whisper_cpp`, `media.core.probe`) is
+--- `pcall`-guarded, so this is too, for the same reason: a bad transcript
+--- must fail as an error string, not as an uncaught Lua error out of a
+--- libuv callback.
 ---@param transcript Media.Transcript
----@return string
+---@return string|nil json
+---@return string|nil err
 local function encode(transcript)
-  return vim.json.encode(transcript)
+  local ok, result = pcall(vim.json.encode, transcript)
+  if ok then return result, nil end
+  return nil, tostring(result)
 end
 
 ---@internal
@@ -63,6 +72,27 @@ local function read_file_async(path, callback)
           callback((not read_err) and data or nil)
         end)
       end)
+    end)
+  end)
+end
+
+---@internal
+--- Write `content` to `path` without blocking the main loop — the write side
+--- of `read_file_async` above, and needed for the same reason: a long
+--- recording's transcript can run to hundreds of KB, and `io.open`/`write`
+--- would stall the editor for the length of that write right after
+--- transcription (already minutes long) finally finishes. Best-effort and
+--- fire-and-forget: this is a cache write for a *future* call, so a failure
+--- here costs the next call a cache hit, not this one its result — nothing
+--- calls back. Found in review, 2026-09-15.
+---@param path string
+---@param content string
+---@return nil
+local function write_file_async(path, content)
+  uv.fs_open(path, "w", 420, function(open_err, fd)
+    if open_err or not fd then return end
+    uv.fs_write(fd, content, 0, function()
+      uv.fs_close(fd, function() end)
     end)
   end)
 end
@@ -114,14 +144,16 @@ local function inflight_key(path, engine, lang, task)
 end
 
 ---@internal
---- Register `waiter` on `job` and hand back a handle that removes it again.
---- The one path every caller — the one that starts the job and every one
---- that joins it — registers through, so there is exactly one way a waiter
---- ends up in `job.waiters` and exactly one way it comes back out.
+--- Register `waiter` on `job` (tracked under `key` in `inflight`) and hand
+--- back a handle that removes it again. The one path every caller — the one
+--- that starts the job and every one that joins it — registers through, so
+--- there is exactly one way a waiter ends up in `job.waiters` and exactly
+--- one way it comes back out.
+---@param key string
 ---@param job Media.Transcribe.Job
 ---@param waiter fun(transcript: Media.Transcript|nil, err: string|nil): nil
 ---@return Media.Transcribe.Handle
-local function join(job, waiter)
+local function join(key, job, waiter)
   job.waiters[#job.waiters + 1] = waiter
   return {
     cancel = function()
@@ -134,7 +166,17 @@ local function join(job, waiter)
       -- Only stop the shared run once nobody is left waiting on it — one
       -- caller giving up must not take the result away from another that
       -- has not.
-      if #job.waiters == 0 and job.cancel then job.cancel() end
+      if #job.waiters == 0 then
+        if job.cancel then job.cancel() end
+        -- `job.cancel` (normalize's or the engine's own handle) marks itself
+        -- cancelled and then permanently suppresses its own callback — the
+        -- only place this module clears `inflight` otherwise
+        -- (`fan_out`) therefore never runs for a job every waiter gave up
+        -- on. Without this, a later call for the same key would join a job
+        -- that will never produce a result — a permanent, silent hang.
+        -- Found in review, 2026-09-15.
+        if inflight[key] == job then inflight[key] = nil end
+      end
     end,
   }
 end
@@ -157,12 +199,12 @@ function M.transcribe(path, opts, callback)
   local key = inflight_key(path, requested_engine, lang, task)
 
   local existing = inflight[key]
-  if existing then return join(existing, callback) end
+  if existing then return join(key, existing, callback) end
 
   ---@type Media.Transcribe.Job
   local job = { waiters = {}, cancel = nil }
   inflight[key] = job
-  local handle = join(job, callback)
+  local handle = join(key, job, callback)
 
   ---@param transcript Media.Transcript|nil
   ---@param err string|nil
@@ -208,11 +250,8 @@ function M.transcribe(path, opts, callback)
               )
             )
             if out then
-              local fd = io.open(out, "w")
-              if fd then
-                fd:write(encode(transcript))
-                fd:close()
-              end
+              local json = encode(transcript)
+              if json then write_file_async(out, json) end
             end
           end
           fan_out(transcript, nil)
