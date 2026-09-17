@@ -29,10 +29,15 @@ return function(H)
     package.loaded["pdfport"] = saved.pdfport
     package.loaded["media"] = saved.media
     package.loaded["media.ui"] = saved.ui
+    -- Last, so the next spec resolves the restored modules rather than this
+    -- spec's stubs. `text` keeps its answer about a sibling plugin on purpose
+    -- — see its own note on why a failing `require` must not happen per file.
+    text.reset()
   end
 
   local ok, err = pcall(function()
     -- ── a missing tool is reported with its fix, not hidden ──────────────
+    text.reset()
     package.loaded["images.ocr"] = false
     local tool = text.tool("image")
     H.eq(tool.ok, false, "no images.nvim means no OCR")
@@ -44,6 +49,7 @@ return function(H)
     )
 
     -- The second, finer failure: images.nvim is there, tesseract is not.
+    text.reset()
     package.loaded["images.ocr"] = {
       run = function() end,
       bin = function()
@@ -55,6 +61,7 @@ return function(H)
     H.match(tool.reason, "tesseract", "a present images.nvim without tesseract is a DIFFERENT no")
     H.match(tool.fix, "ocr.bin", "with a different fix")
 
+    text.reset()
     package.loaded["images.ocr"] = {
       run = function() end,
       bin = function()
@@ -63,11 +70,13 @@ return function(H)
     }
     H.eq(text.tool("image").ok, true, "both present is a yes")
 
+    text.reset()
     package.loaded["pdfport"] = false
     tool = text.tool("pdf")
     H.eq(tool.ok, false, "")
     H.match(tool.reason, "pdfport.nvim", "")
 
+    text.reset()
     package.loaded["pdfport"] = { extract = function() end }
     H.eq(
       text.tool("pdf").ok,
@@ -93,6 +102,7 @@ return function(H)
 
     -- ── routing: an image reaches images.ocr.run ─────────────────────────
     local ocr_calls = {}
+    text.reset()
     package.loaded["images.ocr"] = {
       bin = function()
         return "/usr/bin/tesseract"
@@ -131,6 +141,7 @@ return function(H)
 
     -- ── routing: a PDF reaches pdfport.extract ───────────────────────────
     local pdf_calls = {}
+    text.reset()
     package.loaded["pdfport"] = {
       extract = function(o)
         pdf_calls[#pdf_calls + 1] = o

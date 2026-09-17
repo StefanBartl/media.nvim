@@ -50,9 +50,39 @@ local M = {}
 ---@field detail string|nil  # what the tool wants to say about the run, e.g. "24 pages"
 
 ---@internal
+--- images.nvim's OCR module, resolved once: the module, or `false` when it is
+--- not installed.
+---
+--- Same reason `media.hub.kinds` memoises its own probe: a *failing* `require`
+--- searches the whole `package.path` and runtimepath before giving up, and
+--- `M.tool`'s own docstring invites a dashboard to ask "once per row while it
+--- draws". Measured next door at 10 347 ms over 15 144 files when the plugin
+--- is absent. Cheap once, ruinous in a loop.
+---@type table|false|nil
+local resolved_ocr = nil
+
+---@internal
+--- pdfport, resolved once, for the same reason.
+---@type table|false|nil
+local resolved_pdfport = nil
+
+--- Forget what was resolved about the sibling plugins.
+---
+--- For tests, and for the session that installs one without restarting.
+---@return nil
+function M.reset()
+  resolved_ocr = nil
+  resolved_pdfport = nil
+end
+
+---@internal
 ---@return Media.Hub.Tool
 local function image_tool()
-  local ok, ocr = pcall(require, "images.ocr")
+  if resolved_ocr == nil then
+    local found, mod = pcall(require, "images.ocr")
+    resolved_ocr = (found and type(mod) == "table") and mod or false
+  end
+  local ok, ocr = resolved_ocr ~= false, resolved_ocr or nil
   if not ok or type(ocr) ~= "table" or type(ocr.run) ~= "function" then
     return {
       ok = false,
@@ -78,7 +108,11 @@ end
 ---@internal
 ---@return Media.Hub.Tool
 local function pdf_tool()
-  local ok, pdfport = pcall(require, "pdfport")
+  if resolved_pdfport == nil then
+    local found, mod = pcall(require, "pdfport")
+    resolved_pdfport = (found and type(mod) == "table") and mod or false
+  end
+  local ok, pdfport = resolved_pdfport ~= false, resolved_pdfport or nil
   if not ok or type(pdfport) ~= "table" or type(pdfport.extract) ~= "function" then
     return {
       ok = false,

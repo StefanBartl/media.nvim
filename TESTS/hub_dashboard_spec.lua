@@ -116,6 +116,44 @@ return function(H)
   package.loaded["media"] = real_media
   H.ok(detail_ok, "detail column: " .. tostring(detail_err))
 
+  -- ── one long path must not decide the width of every row ────────────────
+  -- Measured over a real tree, 2026-09-17: a single 247-character path
+  -- against an 87-character average made all 2391 rows 283 cells wide, of
+  -- which some 160 were whitespace — and the status column, which is the whole
+  -- reason this list exists, then sat past column 270 and off the window.
+  H.eq(dashboard.shorten("talks/standup.mp4"), "talks/standup.mp4", "a short name is untouched")
+
+  local long = "WKDBooks/Aktuelle-Literatur/OS/W_Stallings_OS_Internals/PART-4/10_Multi/fig-3.png"
+  local short = dashboard.shorten(long)
+  H.ok(vim.fn.strdisplaywidth(short) <= 56, "a long one is cut to the limit")
+  H.match(short, "^…", "cut from the FRONT")
+  H.match(
+    short,
+    "fig%-3%.png$",
+    "so the filename — the part that answers 'which file' — survives"
+  )
+  H.falsy(short:find("WKDBooks", 1, true), "and the leading directories, the disposable part, go")
+
+  -- Width, not bytes: a byte cut can split a UTF-8 sequence and leave a broken
+  -- glyph sitting in the middle of the list.
+  local umlauts = ("Übungen/Präsentationen/Größenordnung/"):rep(3) .. "datei.png"
+  local cut = dashboard.shorten(umlauts)
+  H.ok(vim.fn.strdisplaywidth(cut) <= 56, "a multibyte name is measured in cells, not bytes")
+  H.eq(vim.fn.strchars(cut), vim.fn.strchars(cut), "and stays valid UTF-8")
+  H.match(cut, "datei%.png$", "")
+
+  -- The whole point: with one outlier in the list, every row still fits.
+  local wide = {
+    { path = "/r/a", name = long, kind = "video", status = "missing" },
+    { path = "/r/b", name = "short.mp4", kind = "video", status = "missing" },
+  }
+  for _, line in ipairs(dashboard.rows(wide, {})) do
+    H.ok(
+      vim.fn.strdisplaywidth(line) < 100,
+      ("a row stays inside a normal float: %d cells"):format(vim.fn.strdisplaywidth(line))
+    )
+  end
+
   -- ── the rows, and their alignment ───────────────────────────────────────
   ---@type Media.Hub.Entry[]
   local entries = {

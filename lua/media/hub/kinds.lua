@@ -62,14 +62,47 @@ local IMAGE = {
 }
 
 ---@internal
+--- images.nvim's `is_image`, resolved once: the function, or `false` when the
+--- plugin is not installed.
+---
+--- **Resolved once because a *failing* `require` is expensive.** Lua searches
+--- the whole `package.path` and runtimepath before giving up, and `M.of` runs
+--- per file — so on a machine without images.nvim, a scan paid that search
+--- fifteen thousand times. Measured 2026-09-17 over `E:/repos`: `kinds.of`
+--- across 15 144 files took **54 ms** with images.nvim installed and **10 347
+--- ms** without it. A soft dependency is cheap to probe once and ruinous to
+--- probe in a loop.
+---
+--- `false` rather than `nil` for "looked and it is not there", so a second
+--- miss is a comparison rather than another search.
+---@type (fun(path: string): boolean)|false|nil
+local resolved_is_image = nil
+
+--- Forget what was resolved about images.nvim.
+---
+--- For tests, and for the rare session that installs the plugin without
+--- restarting. `images.ocr.clear` exists next door for the same reason.
+---@return nil
+function M.reset()
+  resolved_is_image = nil
+end
+
+---@internal
 --- Whether images.nvim calls this an image, falling back to `IMAGE` above.
 ---@param path string
 ---@param ext string
 ---@return boolean
 local function is_image(path, ext)
-  local ok, picker = pcall(require, "images.integrations.picker")
-  if ok and type(picker) == "table" and type(picker.is_image) == "function" then
-    local answered, result = pcall(picker.is_image, path)
+  if resolved_is_image == nil then
+    resolved_is_image = false
+    local ok, picker = pcall(require, "images.integrations.picker")
+    if ok and type(picker) == "table" and type(picker.is_image) == "function" then
+      resolved_is_image = picker.is_image
+    end
+  end
+
+  if resolved_is_image then
+    local answered, result = pcall(resolved_is_image, path)
     if answered then return result == true end
   end
   return IMAGE[ext] == true

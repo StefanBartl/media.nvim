@@ -33,6 +33,11 @@ return function(H)
   -- draw a page and wrong here — classifying by capability would drop the row
   -- that tells the reader what is missing.
   local real_picker = package.loaded["images.integrations.picker"]
+  -- `reset()` before every stub swap: `kinds` resolves images.nvim once and
+  -- keeps the answer, because a failing `require` in a per-file loop cost
+  -- 10 347 ms over 15 144 files (measured 2026-09-17). The memo is the point;
+  -- the spec has to clear it deliberately.
+  kinds.reset()
   package.loaded["images.integrations.picker"] = {
     is_image = function()
       return false
@@ -50,6 +55,7 @@ return function(H)
 
   -- ── and without images.nvim, the fallback list answers ──────────────────
   package.loaded["images.integrations.picker"] = nil
+  kinds.reset()
   local real_images = package.loaded["images"]
   package.loaded["images"] = false
   H.eq(
@@ -60,6 +66,7 @@ return function(H)
   H.eq(kinds.of("/a/scan.tiff"), "image", "")
   package.loaded["images"] = real_images
   package.loaded["images.integrations.picker"] = real_picker
+  kinds.reset()
 
   -- ── three operations, three sidecar names ──────────────────────────────
   -- Not three spellings of one thing: OCR misreads, transcription mishears,

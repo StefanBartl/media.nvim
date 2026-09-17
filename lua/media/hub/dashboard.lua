@@ -45,6 +45,23 @@ local PROBE_LIMIT = 50
 --- same number and what went wrong when only the first existed.
 local PROBE_CONCURRENCY = 4
 
+--- The widest a name column is allowed to get, in display cells.
+---
+--- **One long path must not decide the width of every row.** The column is
+--- padded to the longest name in the list, so a single deeply-nested file
+--- pushes all of them out. Measured over `E:/repos` on 2026-09-17: one
+--- 247-character path against an 87-character average made every one of 2391
+--- rows **283 cells wide**, some 160 of them whitespace — and the status
+--- column, the entire reason this list exists, then sat past column 270 and
+--- off the side of the window. It cost 160 ms a redraw as well, but the
+--- unreadable list was the real defect.
+---
+--- Fifty-six leaves the mark, the kind, a detail and the status inside about a
+--- hundred columns, which is a normal float at `width = 0.8`. Longer names are
+--- cut from the **front**: the leading directories are the disposable part,
+--- and the filename is what a reader is looking for.
+local NAME_LIMIT = 56
+
 ---@internal
 --- The marker and the words for one row's status.
 ---@type table<Media.Hub.Status, { marker: string, suffix: string|nil }>
@@ -130,6 +147,34 @@ function M.status_text(entry)
   return ("%s %s: %s"):format(state.marker, verb, state.suffix or entry.status)
 end
 
+--- A name trimmed to `NAME_LIMIT`, cut from the front.
+---
+--- Pure and public because the truncation is a decision, not a detail: which
+--- end is kept is the difference between a column of
+--- `WKDBooks/Aktuelle-Literatur/OS/W_Stallings…` and one of
+--- `…/10_Multiprocessor/fig-3.png`, and only the second answers "which file is
+--- this".
+---
+--- Width, not bytes: a byte-count cut can split a UTF-8 sequence and leave a
+--- broken glyph in the middle of the list. `strcharpart` takes whole
+--- characters, and the loop shrinks further in the rare case those characters
+--- are wide ones — never wider than the limit, occasionally a cell narrower,
+--- which is the safe direction.
+---@param name string
+---@return string
+function M.shorten(name)
+  if vim.fn.strdisplaywidth(name) <= NAME_LIMIT then return name end
+
+  local chars = vim.fn.strchars(name)
+  local keep = NAME_LIMIT - 1
+  while keep > 0 do
+    local tail = vim.fn.strcharpart(name, chars - keep, keep)
+    if vim.fn.strdisplaywidth(tail) <= NAME_LIMIT - 1 then return "…" .. tail end
+    keep = keep - 1
+  end
+  return "…"
+end
+
 --- Every entry as one aligned line.
 ---
 --- Pure, and it takes the details and the marks as data rather than fetching
@@ -153,9 +198,10 @@ function M.rows(entries, details, marked)
   local cells = {}
   for i, entry in ipairs(entries) do
     local detail = details[entry.path] or ""
-    cells[i] = { kind = entry.kind, name = entry.name, detail = detail }
+    local name = M.shorten(entry.name)
+    cells[i] = { kind = entry.kind, name = name, detail = detail }
     kind_w = math.max(kind_w, vim.fn.strdisplaywidth(entry.kind))
-    name_w = math.max(name_w, vim.fn.strdisplaywidth(entry.name))
+    name_w = math.max(name_w, vim.fn.strdisplaywidth(name))
     detail_w = math.max(detail_w, vim.fn.strdisplaywidth(detail))
   end
 
@@ -274,6 +320,29 @@ local function fill_details(state, bufnr, winid)
 
   local next_index = 0
 
+  --- One redraw per event-loop tick, however many probes answered in it.
+  ---
+  --- Redrawing per answer meant up to `PROBE_LIMIT` full re-renders of the
+  --- whole list — fifty of them, each rebuilding every row. Four probes run at
+  --- a time, so four answers commonly land in the same tick and produced four
+  --- identical redraws. Coalescing costs one boolean and removes three
+  --- quarters of the work; `vim.schedule` is enough for it and needs no timer
+  --- to keep alive or tear down.
+  local redraw_pending = false
+  local function request_redraw()
+    if redraw_pending then return end
+    redraw_pending = true
+    vim.schedule(function()
+      redraw_pending = false
+      if not vim.api.nvim_buf_is_valid(bufnr) then return end
+      -- **`state.marked`, not an empty table.** Without it a probe landing
+      -- after the reader marked a row wiped the `●` off the screen while the
+      -- mark stayed live — so the next `<CR>` acted on rows nobody could see
+      -- were selected. Found in review, 2026-09-17.
+      redraw(bufnr, winid, M.rows(state.entries, state.details, state.marked))
+    end)
+  end
+
   local function pump()
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
     next_index = next_index + 1
@@ -286,11 +355,7 @@ local function fill_details(state, bufnr, winid)
       -- place decides what a kind's detail column says, and it is the same one
       -- the first draw went through.
       state.details[entry.path] = M.detail(entry)
-      -- **`state.marked`, not an empty table.** Without it a probe landing
-      -- after the reader marked a row wiped the `●` off the screen while the
-      -- mark stayed live — so the next `<CR>` acted on rows nobody could see
-      -- were selected. Found in review, 2026-09-17.
-      redraw(bufnr, winid, M.rows(state.entries, state.details, state.marked))
+      request_redraw()
       pump()
     end)
   end
