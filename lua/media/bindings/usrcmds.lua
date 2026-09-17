@@ -127,6 +127,23 @@ function M.run(action, path, opts)
   end
 
   if action == "transcribe" then
+    local output = require("media.output")
+    local mode = (opts and opts.output) or require("media.config").get().transcribe.output
+
+    -- **Before the run, not after it.** A rejected `out=` used to be found by
+    -- `output.deliver`, which is minutes later — the reader waits out a whole
+    -- transcription to be told about a typo they made before it started.
+    if not output.is_mode(mode) then
+      say(
+        ("unknown out=%s — expected one of %s"):format(
+          tostring(mode),
+          table.concat(output.MODES, ", ")
+        ),
+        vim.log.levels.ERROR
+      )
+      return
+    end
+
     -- Transcription is minutes, not seconds (ROADMAP.md's "Risks and known
     -- traps") — said up front for the same reason `frame`/`sheet` say
     -- "rendering…" before starting, except here the silence it prevents
@@ -137,15 +154,16 @@ function M.run(action, path, opts)
         say(err or "transcription failed", vim.log.levels.ERROR)
         return
       end
-      local mode = (opts and opts.output) or require("media.config").get().transcribe.output
-      local ok, derr = require("media.output").deliver(path, transcript, mode)
+      local ok, derr = output.deliver(path, transcript, mode)
       if not ok then
         say(derr or "could not deliver the transcript", vim.log.levels.ERROR)
         return
       end
-      if mode == "sidecar" then
-        say(("wrote %s"):format(require("media.output.sidecar").path(path)))
-      end
+      -- Every mode that produces a file says which one, and `written_path`
+      -- is the only thing that knows the mapping — a buffer answers nil and
+      -- is its own confirmation.
+      local written = output.written_path(path, mode)
+      if written then say(("wrote %s"):format(written)) end
     end)
     return
   end
@@ -328,7 +346,7 @@ function M.register()
           { key = "task", type = "STRING" },
           { key = "out", type = "STRING" },
         },
-        desc = "Speech to text  :Media transcribe [path] [engine=] [lang=] [task=transcribe|translate] [out=buffer|sidecar]",
+        desc = "Speech to text  :Media transcribe [path] [engine=] [lang=] [task=transcribe|translate] [out=buffer|sidecar|srt|vtt]",
         run = function(ctx)
           local path = require_path(ctx, "Media transcribe")
           if not path then return end

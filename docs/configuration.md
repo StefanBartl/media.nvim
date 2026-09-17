@@ -148,14 +148,20 @@ sample of the file once rather than seek, so this is not the interactive
 | `transcribe.fallback` | `string[]` | `{}` |
 | `transcribe.lang` | `string\|nil` | `nil` — let the engine detect it |
 | `transcribe.task` | `"transcribe"\|"translate"` | `"transcribe"` |
-| `transcribe.output` | `"buffer"\|"sidecar"` | `"buffer"` |
+| `transcribe.output` | `"buffer"\|"sidecar"\|"srt"\|"vtt"` | `"buffer"` |
 | `transcribe.cache` | `boolean` | `true` |
 | `transcribe.timeout_ms` | `integer` | `0` — no timeout |
 | `transcribe.normalize_timeout_ms` | `integer` | `120000` |
 | `transcribe.whisper_cpp.model` | `string\|nil` | `nil` |
 
-Phase 0 (ROADMAP.md's "Transcription" section): one engine, no SRT/VTT
-export yet, `fallback` empty because there is nothing yet to fall back to.
+One engine so far (ROADMAP.md's "Transcription" section), with `fallback`
+empty because there is nothing yet to fall back to.
+
+`output` picks where a finished transcript goes: `"buffer"` a scratch
+window, `"sidecar"` a `<file>.transcript.md`, and `"srt"`/`"vtt"` subtitle
+files written beside the source as `<file>.srt`/`<file>.vtt`. The default
+stays the buffer because a machine transcript is worth reading before it is
+worth keeping; `:Media transcribe out=` overrides it per call.
 
 `timeout_ms` defaults to **no timeout**, deliberately — the interactive
 `timeout_ms` at the top of this file (15 s) would kill every real

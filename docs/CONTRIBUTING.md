@@ -32,8 +32,10 @@ lua/media/
     init.lua            -- loads and registers every built-in transcription engine
     whisper_cpp.lua     -- local transcription via whisper.cpp's `whisper-cli`
   output/
-    init.lua            -- delivering a finished transcript: a buffer, or a sidecar file
+    init.lua            -- delivering a finished transcript: buffer | sidecar | srt | vtt
     sidecar.lua         -- `<file>.transcript.md`
+    srt.lua             -- SubRip; the comma in its timestamp is the classic trap
+    vtt.lua             -- WebVTT; cue text is markup, unlike SubRip's
   bindings/
     init.lua            -- one entry point, idempotent
     keymaps.lua         -- the four keys

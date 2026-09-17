@@ -86,8 +86,14 @@ before you press one.
 
 :Media transcribe [path] [engine=] [lang=] [task=] [out=]
                         Speech to text: probe, extract a 16 kHz mono WAV,
-                        run it through the resolved engine, deliver as a
-                        buffer or a `.transcript.md` sidecar (`out=`).
+                        run it through the resolved engine, deliver it.
+                        `out=` is one of:
+                          buffer   a scratch window (the default)
+                          sidecar  <file>.transcript.md
+                          srt      <file>.srt   (SubRip)
+                          vtt      <file>.vtt   (WebVTT)
+                        An unknown `out=` is rejected before the run
+                        starts, not after minutes of waiting.
                         Needs `whisper-cli` on PATH and
                         `transcribe.whisper_cpp.model` set; neither is ever
                         installed automatically. `:checkhealth media` says
@@ -143,7 +149,7 @@ Rebind or disable individually through `keymaps` — see
                    timeout_ms = 120000 },
       transcribe = {
         engine = "whisper_cpp", fallback = {}, lang = nil,
-        task = "transcribe", output = "buffer", cache = true,
+        task = "transcribe", output = "buffer", cache = true,  -- buffer|sidecar|srt|vtt
         timeout_ms = 0, normalize_timeout_ms = 120000,
         whisper_cpp = { model = nil },
       },
