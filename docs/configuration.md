@@ -140,6 +140,26 @@ Same reasoning as `sheet.timeout_ms` for the ceiling: both filters read every
 sample of the file once rather than seek, so this is not the interactive
 `timeout_ms`.
 
+## `hub`
+
+What the dashboard's scan walks into, and how far it goes before giving up.
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `hub.exclude` | `string[]` | `{ ".venv", "target", "dist", "build", ".cache" }` |
+| `hub.max_entries` | `integer` | `20000` |
+
+`.git` and `node_modules` are **always** skipped and are not in this list.
+They are separate because they are not a preference: `node_modules` is where an
+entry cap goes to die, and a scan that descended into it would find nothing but
+dependencies.
+
+`max_entries` is a safety net against a `cwd` that turns out to be a home
+directory, not a limit anyone should reach on purpose. Hitting it is a **quiet
+stop**, not an error — what was found before it is still the right answer to
+show, and a dashboard refusing to draw because a directory was large would be
+the worse failure. Same number and same reasoning as `images.browse`'s own cap.
+
 ## `progress_style`
 
 | Key | Type | Default |

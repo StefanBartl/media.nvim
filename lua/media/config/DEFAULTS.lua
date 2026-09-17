@@ -225,6 +225,31 @@ return {
     dir = nil,
   },
 
+  --- The dashboard (`:Media`, `:Media dashboard`) — what a scan walks into and
+  --- how far it goes before giving up. ROADMAP.md's "The hub" has the rest.
+  hub = {
+    --- Directory names a scan does not descend into, on top of `.git` and
+    --- `node_modules`, which are always skipped.
+    ---
+    --- The two that are never optional are named separately for a reason:
+    --- `node_modules` is where an entry cap goes to die, and a user who
+    --- removed it from this list would get a scan that finds nothing but
+    --- dependencies. Everything else is a preference.
+    ---@type string[]
+    exclude = { ".venv", "target", "dist", "build", ".cache" },
+
+    --- Upper bound on entries one scan visits.
+    ---
+    --- A safety net against a `cwd` that turns out to be a home directory, not
+    --- a limit anyone should reach on purpose. Hitting it is a **quiet stop**,
+    --- not an error: what was found before it is still the right answer to
+    --- show, and refusing to draw a dashboard because a directory was large
+    --- would be the worse failure. Same number and same reasoning as
+    --- `images.browse`'s own cap.
+    ---@type integer
+    max_entries = 20000,
+  },
+
   --- How `:Media transcribe` shows that it is working: `lib.nvim.progress`'s
   --- own style names, passed straight through. `"auto"` picks whatever is
   --- installed.
