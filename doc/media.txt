@@ -84,6 +84,31 @@ before you press one.
                         question answered: frequency content rather than
                         loudness. Default: 1200x300.
 
+:Media dashboard [cfile|cwd] [path=<dir>]
+                        One list across every image, PDF, audio file and
+                        video below a scope, and whether each one's text is
+                        there:
+
+                          image  assets/error.png   1920x1080  ✓ ocr
+                          audio  notes.m4a          6:44   — transcript: missing
+                          video  talks/keynote.mp4  41:07  ! transcript: stale
+
+                        The last column is why this exists. `—` is a job not
+                        yet done; `!` is a file on disk quietly answering
+                        questions about a version of the source that no
+                        longer exists.
+
+                        Scope is the same three words images.nvim and
+                        language.nvim use: cwd (default), cfile, path=<dir>.
+                        `.git` and `node_modules` are never descended into.
+
+                        Keys: <CR> open this file's text, gf open the source,
+                        p describe it, r rescan, q close.
+
+                        The scan starts no processes. The detail column is
+                        filled in afterwards, by a bounded number of probes,
+                        and the list redraws as they answer.
+
 :Media text [path] [out=]
                         Anything to text, whatever the file is -- the
                         kind-agnostic verb, and the reason this plugin is

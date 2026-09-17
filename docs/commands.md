@@ -97,6 +97,65 @@ frequencies are in this clip rather than how loud it is at each moment.
 | `width=` | pixels | `1200` |
 | `height=` | pixels | `300` |
 
+## `:Media dashboard [cfile|cwd] [path=<dir>]`
+
+One list across every image, PDF, audio file and video below a scope, and
+whether each one's text is there:
+
+```
+  image  assets/error.png        1920x1080  ✓ ocr (3 days old)
+  audio  notes/2026-08-11.m4a    6:44       — transcript: missing
+  pdf    docs/spec.pdf                      — text: missing
+  video  talks/keynote.mp4       41:07      ! transcript: stale
+  video  talks/standup.mp4       14:32      ✓ transcript (2 hours old)
+```
+
+**The last column is why this exists.** `—` is a job not yet done. `!` is a
+file on disk quietly answering questions about a version of the source that no
+longer exists — the one that produces wrong answers without ever looking wrong.
+The title counts them: `media: ~/work — 12 files, 2 stale, 5 missing`.
+
+### Scope
+
+The same three words as `:Image pickers` and `language.nvim`, with the same
+three meanings:
+
+| Scope | Means |
+| --- | --- |
+| `cwd` (the default) | the working directory |
+| `cfile` | the directory of the file in the current buffer |
+| `path=<dir>` | an explicit directory |
+
+`.git` and `node_modules` are never descended into; `hub.exclude` adds more,
+and `hub.max_entries` bounds a scan that turns out to cover a home directory.
+
+### Keys
+
+| Key | Does |
+| --- | --- |
+| `<CR>` | open this file's text — the sidecar, when there is one |
+| `gf` | open the source file |
+| `p` | describe it, as `:Media probe` does |
+| `r` | rescan |
+| `q` / `<Esc>` | close |
+
+A **stale** sidecar opens anyway, with a warning: it is still the text that is
+there, and refusing would hide the thing the column exists to point at.
+
+### What it does not do yet
+
+Running an action over a row — or over several marked ones — is the hub's next
+stage. These keys get you to the file or to the text that already exists;
+`:Media text` is what makes text that does not.
+
+### The detail column fills in after the list appears
+
+The scan itself starts no processes: five hundred files would be five hundred
+`ffprobe`s before a single row was drawn. So the list is on screen at once with
+whatever is already cached, and up to fifty probes then fill the middle column
+in and redraw. A PDF's page count stays blank — that is `pdfinfo`'s answer, and
+this plugin will not shell out to it behind pdfport's back.
+
 ## `:Media text [path] [out=]`
 
 **One verb, whatever the file is.** This is the reason the plugin is called

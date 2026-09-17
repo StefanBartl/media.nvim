@@ -571,6 +571,22 @@ function M.register()
       },
 
       {
+        path = { "dashboard" },
+        args = { { name = "scope", type = "STRING", optional = true } },
+        kv = { { key = "path", type = "STRING" } },
+        desc = "One list across image/pdf/audio/video  :Media dashboard [cfile|cwd] [path=<dir>]",
+        run = function(ctx)
+          -- `path=<dir>` is a kv rather than a third positional word, so the
+          -- scope vocabulary stays the three words `images.browse.roots()` and
+          -- `language.scope` already use rather than growing a fourth.
+          local kv = ctx.kv or {}
+          local scope = (ctx.args or {}).scope
+          if kv.path and kv.path ~= "" then scope = "path" end
+          require("media.hub.dashboard").open(scope, kv.path)
+        end,
+      },
+
+      {
         path = { "text" },
         args = path_arg,
         kv = { { key = "out", type = "STRING" } },
@@ -661,6 +677,13 @@ function M.register_fallback()
       vim.cmd("checkhealth media")
       return
     end
+    if sub == "dashboard" then
+      -- The second word is the scope here, not a path — `:Media dashboard
+      -- cfile`. Without the composer there is no `path=` kv, so the explicit
+      -- directory form is `:Media dashboard path <dir>`.
+      require("media.hub.dashboard").open(cmd.fargs[2], cmd.fargs[3])
+      return
+    end
     if sub == "engines" then
       require("media.engines").load_all()
       local registry = require("media.core.registry")
@@ -696,6 +719,7 @@ function M.register_fallback()
           "sheet",
           "waveform",
           "spectrogram",
+          "dashboard",
           "text",
           "transcribe",
           "engines",
