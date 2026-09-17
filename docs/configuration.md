@@ -140,6 +140,38 @@ Same reasoning as `sheet.timeout_ms` for the ceiling: both filters read every
 sample of the file once rather than seek, so this is not the interactive
 `timeout_ms`.
 
+## `render_concurrency`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `render_concurrency` | `integer` | `4` |
+
+How many `ffmpeg` renders may run at once.
+
+**A bound on a storm, not a throughput setting.** Raising it does not make a
+directory of thumbnails appear sooner — each render is already a multi-threaded
+decode, and four of them on four cores is where they start taking the work off
+each other. What it prevents is the other end. Measured 2026-09-17, before this
+existed:
+
+| | concurrent `ffmpeg` processes |
+| --- | --- |
+| holding a paging key down in a video hover (30 presses) | 30 |
+| the same, with prefetching behind each press | 60 |
+| with a playback window on top | 61 |
+
+All three are 4 now, and nothing is dropped — the queue delays, it does not
+discard.
+
+**A playback window jumps the queue regardless of this number**, because it is
+the one render with a deadline: `hover.nvim`'s transport asks for the next
+window a second before it needs it. Queued behind thirty stills it arrived at
+**1111 ms**; ahead of them, at **243 ms**. That measurement is why the queue has
+priorities at all rather than being a plain FIFO.
+
+A prefetch goes last, and one that never runs because the queue stayed busy has
+lost nothing — the real request behind it does the work.
+
 ## `hub`
 
 What the dashboard's scan walks into, and how far it goes before giving up.

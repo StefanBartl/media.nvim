@@ -199,7 +199,7 @@ function M.frame(path, opts, callback)
         end
         done(nil)
       end)
-    end, callback)
+    end, callback, { priority = opts.priority })
   end)
 end
 
@@ -232,7 +232,12 @@ end
 ---@param opts Media.FrameOpts|nil
 ---@return nil
 function M.prefetch(path, opts)
-  M.frame(path, opts, function() end)
+  -- `"low"`: this is the one caller in the plugin whose work nobody has asked
+  -- for yet, so it is the one that should give way. A prefetch that never runs
+  -- because the queue stayed busy has lost nothing — the real request behind
+  -- it does the work, which is where the plugin was before prefetching
+  -- existed.
+  M.frame(path, vim.tbl_extend("force", opts or {}, { priority = "low" }), function() end)
 end
 
 return M

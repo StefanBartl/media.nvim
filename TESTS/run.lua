@@ -52,6 +52,7 @@ local specs = {
   "player_args_spec.lua",
   "proc_spec.lua",
   "cache_key_spec.lua",
+  "cache_queue_spec.lua",
   "ui_spec.lua",
   "bin_spec.lua",
   "play_spec.lua",

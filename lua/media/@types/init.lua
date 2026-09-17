@@ -14,6 +14,7 @@
 ---@field waveform Media.Config.Waveform
 ---@field transcribe Media.Config.Transcribe
 ---@field cache Media.Config.Cache
+---@field render_concurrency integer
 ---@field hub Media.Config.Hub
 ---@field progress_style Media.Config.ProgressStyle
 ---@field player string|string[]|nil
@@ -118,6 +119,7 @@
 ---@field waveform? Media.Opts.Waveform
 ---@field transcribe? Media.Opts.Transcribe
 ---@field cache? Media.Opts.Cache
+---@field render_concurrency? integer
 ---@field hub? Media.Opts.Hub
 ---@field progress_style? Media.Config.ProgressStyle
 ---@field player? string|string[]
@@ -205,6 +207,7 @@
 ---@class Media.FrameOpts
 ---@field at number|string|nil  # default `frame.at`
 ---@field width integer|nil     # default `frame.width`
+---@field priority Media.Cache.Priority|nil  # where this sits in the render queue; default "normal". `media.prefetch_frame` is the one caller that passes "low".
 
 ---@class Media.FramesOpts
 ---@field from number|string|nil  # where the run starts; seconds, "10%", or an ffmpeg timestamp. default `frames.from`
