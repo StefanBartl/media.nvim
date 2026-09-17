@@ -83,4 +83,34 @@ return function(H)
 
   at = frame.resolve_at(-5, 10)
   H.eq(at, 0, "a negative offset is the start of the file")
+
+  -- ── prefetch is `frame` with nobody listening ────────────────────────────
+  -- Asserted against `frame` itself rather than against ffmpeg: what matters
+  -- is that it forwards the same path and opts and swallows the outcome, and
+  -- that a failing render never reaches the caller as an error it did not ask
+  -- for. The real `frame` is restored either way.
+  local real_frame = frame.frame
+  local calls = {}
+  -- Swapping in a test double, not a real duplicate definition.
+  ---@diagnostic disable-next-line: duplicate-set-field
+  frame.frame = function(path, opts, callback)
+    calls[#calls + 1] = { path = path, opts = opts, callback = callback }
+  end
+
+  local ok_prefetch, prefetch_err = pcall(function()
+    frame.prefetch("/tmp/clip.mp4", { at = "20%", width = 640 })
+    H.eq(#calls, 1, "prefetch renders through the same path a real request does")
+    H.eq(calls[1].path, "/tmp/clip.mp4", "the path is forwarded unchanged")
+    H.eq(calls[1].opts.at, "20%", "and so are the opts")
+    H.eq(calls[1].opts.width, 640, "")
+    H.eq(type(calls[1].callback), "function", "it still passes a callback — `frame` requires one")
+
+    -- The whole contract of a fire-and-forget render: an error is not an
+    -- event. Nobody asked for this still, so nobody is told it failed.
+    calls[1].callback(nil, "ffmpeg exited with 1")
+    calls[1].callback("/tmp/out.png", nil)
+  end)
+
+  frame.frame = real_frame
+  H.ok(ok_prefetch, "a failing prefetch raises nothing: " .. tostring(prefetch_err))
 end

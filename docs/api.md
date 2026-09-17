@@ -19,6 +19,8 @@ media.frame(path, { at = "10%", width = 800 }, function(png, err)
   -- png is a path to a PNG on disk; hand it to whatever draws pictures
 end)
 
+media.prefetch_frame(path, { at = "20%", width = 800 })  -- render it now, ask for it later
+
 media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
 media.waveform(path, {}, function(png, err) end)                     -- sound equivalent of a poster frame
 media.spectrogram(path, {}, function(png, err) end)                  -- same shape, frequency content instead
@@ -58,6 +60,39 @@ output.is_mode("srt")                   -- true; check this BEFORE a run, not af
 output.written_path(path, "srt")        -- "<path>.srt", or nil for a buffer
 output.deliver(path, transcript, "srt") -- ok, err
 ```
+
+### Rendering a still before it is asked for
+
+`media.prefetch_frame` is `media.frame` with nobody listening: it starts the
+render, returns immediately, and reports nothing. It exists for a consumer
+stepping through a file, which knows where the reader is going next — the
+hover in `hover.nvim` asks for page *n+1* the moment page *n* is on screen, so
+the decode happens while the reader looks at the picture rather than after
+they press the key.
+
+```lua
+media.frame(path, { at = here, width = w }, function(png, err)
+  if png then
+    show(png)
+    media.prefetch_frame(path, { at = next_offset, width = w })  -- same width!
+  end
+end)
+```
+
+Two things make this cost nothing when it is not needed. `media.core.cache`
+joins a render already in flight and answers a finished one from a single
+`fs_stat`, so the real request behind a prefetch never starts a second ffmpeg;
+and errors are swallowed, because a still nobody asked for failing is not an
+event the reader should hear about.
+
+**The step cursor stays with the consumer, deliberately.** media.nvim renders
+and caches but does not track where anyone is in a file — two consumers
+scrubbing the same one must not share a cursor. So the offset arithmetic is
+the caller's, and this call is only the request to have the answer ready.
+
+**Pass the same `width` the real call will use.** A different width is a
+different cache entry: the prefetch would render a second PNG and the real
+request would still wait for its own.
 
 ### Reporting which step a run is on
 

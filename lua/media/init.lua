@@ -34,6 +34,7 @@
 --- media.is_video(path)              -- by extension, no process started
 --- media.probe(path, function(p, err) end)          -- duration, size, codecs
 --- media.frame(path, { at = "10%" }, function(png, err) end)  -- a still
+--- media.prefetch_frame(path, { at = "20%" })   -- render the next one early
 --- media.frames(path, { from = 0, count = 24 }, function(pngs, err) end)  -- a run
 --- media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
 --- media.waveform(path, {}, function(png, err) end)
@@ -107,6 +108,24 @@ end
 ---@return nil
 function M.frame(path, opts, callback)
   return require("media.core.frame").frame(path, opts, callback)
+end
+
+--- Render a still into the cache without waiting for it — for a consumer that
+--- knows where the reader is going next.
+---
+--- The scrubbing case this exists for: a hover stepping a video renders `t`,
+--- shows it, and asks for `t + step` right away, so the next press finds the
+--- PNG already on disk. `media.nvim` offers it; the consumer decides when,
+--- because the step cursor belongs to whoever owns the window and two
+--- consumers scrubbing the same file must not share one.
+---
+--- Never raises, never notifies, and never starts a second render for a still
+--- already cached or already in flight. See `media.core.frame.prefetch`.
+---@param path string
+---@param opts Media.FrameOpts|nil
+---@return nil
+function M.prefetch_frame(path, opts)
+  return require("media.core.frame").prefetch(path, opts)
 end
 
 --- A run of stills out of `path`, in order, as PNGs on disk.
