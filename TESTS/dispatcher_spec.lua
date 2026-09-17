@@ -88,7 +88,17 @@ return function(H)
       H.ok(pending_cb ~= nil, "the pipeline is waiting on normalize")
 
       -- Completing the shared pipeline must fan out to both waiters.
+      --
+      -- Waited for rather than asserted straight after: since 2026-09-17 the
+      -- engine's callback is scheduled onto the main loop (a real engine
+      -- answers from `vim.system`'s fast event context, where `vim.fn.*` is
+      -- forbidden), so delivery is one tick later. "On the main loop" is what
+      -- `media.init` promises; "synchronously" never was, and this assertion
+      -- had quietly been relying on it.
       pending_cb("/tmp/fake.wav", nil)
+      vim.wait(2000, function()
+        return first ~= nil and second ~= nil
+      end, 5)
       H.ok(first ~= nil, "the first caller got a result")
       H.ok(second ~= nil, "the second caller got a result too, from the same run")
       H.eq(first[1].text, "joined result", "same transcript object reaches both")
@@ -287,6 +297,11 @@ return function(H)
       }, function(t)
         got = t
       end)
+      -- Waited for, like the dedup assertion above: the engine's callback is
+      -- scheduled onto the main loop since 2026-09-17.
+      vim.wait(2000, function()
+        return got ~= nil
+      end, 5)
       H.ok(got ~= nil, "the run finished regardless")
       H.eq(
         got.text,
@@ -332,6 +347,88 @@ return function(H)
       H.ok(got ~= nil, "the cache-hit callback fired")
       H.eq(normalize_called, false, "a cache hit never touches normalize")
       H.eq(got[1] and got[1].text, "from cache", "the cached transcript is what came back")
+    end
+
+    -- ── an engine answering from a fast event context must not crash ────
+    -- The defect this closes, found by the first real whisper.cpp run
+    -- (2026-09-17): an engine shells out, so its callback arrives from
+    -- `vim.system`'s `on_exit` — a fast event context, where `vim.fn.*` is
+    -- forbidden. The very next thing the dispatcher did was compute a cache
+    -- key through `vim.fn.sha256`, and every waiter after it is a consumer
+    -- callback this plugin promises may touch the Neovim API. Both were
+    -- violated, and it survived all of phase 0 because the fake engine these
+    -- specs use called back from an ordinary context — which is exactly the
+    -- property a fake cannot be relied on to reproduce.
+    --
+    -- `vim.uv.new_check` gives a genuine fast context without needing a real
+    -- process, so this reproduces the crash rather than approximating it.
+    do
+      config.setup({})
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      cache_stub.file = function()
+        -- `real_cache`, captured at the top of this spec — **not**
+        -- `require("media.core.cache")`, which returns this very stub and
+        -- recurses forever. The real one is the point: `vim.fn.sha256` inside
+        -- it is what raised, so a stub would test nothing.
+        --
+        -- It needs a path that exists, because `file` stats it for the mtime
+        -- that goes into the key.
+        local probe_path = vim.fn.tempname()
+        vim.fn.writefile({ "x" }, probe_path)
+        local out = real_cache.file("transcript", probe_path, { "x" }, "json")
+        os.remove(probe_path)
+        return out
+      end
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      normalize_stub.normalize = function(_, callback)
+        callback("/tmp/fake.wav", nil)
+        return { cancel = function() end }
+      end
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      resolver_stub.resolve = function()
+        local fast_engine = {
+          id = "fast-context",
+          transcribe = function(_, _, callback)
+            local uv = vim.uv or vim.loop
+            local check = uv.new_check()
+            check:start(function()
+              check:stop()
+              check:close()
+              -- Inside a libuv check callback: `vim.in_fast_event()` is true
+              -- here, exactly as in `vim.system`'s `on_exit`.
+              callback({
+                engine = "fast-context",
+                segments = { { s = 0, e = 1, text = "from a fast context" } },
+                text = "from a fast context",
+              }, nil)
+            end)
+            return { cancel = function() end }
+          end,
+        }
+        return fast_engine, nil
+      end
+
+      local fast_got, fast_err
+      dispatcher.transcribe("/tmp/__dispatcher_spec_fast_ctx.mkv", {}, function(t, e)
+        fast_got, fast_err = t, e
+      end)
+      vim.wait(2000, function()
+        return fast_got ~= nil or fast_err ~= nil
+      end, 5)
+
+      H.ok(
+        fast_got ~= nil,
+        "a result from a fast event context reaches the caller: " .. tostring(fast_err)
+      )
+      H.eq(fast_got.text, "from a fast context", "")
+      H.eq(
+        vim.in_fast_event(),
+        false,
+        "and the waiter runs on the main loop, which is what `media.init` promises"
+      )
     end
 
     -- ── a cache miss runs the pipeline and writes the result back ───────

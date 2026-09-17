@@ -8,13 +8,18 @@
 --- whisper.cpp's JSON carries the timestamped segments in a stable shape
 --- stdout has never promised to keep.
 ---
---- **Not live-verified.** No whisper.cpp binary or GGML model is installed on
---- the machine this was written on; the JSON shape `M.from_json` reads is
---- transcribed from whisper.cpp's own `examples/main/main.cpp`
---- (`output_json`), not observed against a real run. `:checkhealth media`
---- says plainly when the binary or the model is missing rather than
---- pretending either is there — see the module note on `media.transcribe`
---- for what to check before trusting this against a real file.
+--- **Live-verified 2026-09-17**, against a real build and `ggml-base.en.bin`
+--- on `samples/jfk.wav`. The JSON shape `M.from_json` reads was transcribed
+--- from whisper.cpp's own source rather than observed, and the run confirmed
+--- it exactly: `transcription[].offsets.{from,to}` in milliseconds,
+--- `transcription[].text`, `result.language`. The hand-written fixture in
+--- `TESTS/whisper_cpp_spec.lua` needed no change.
+---
+--- **What the same run disproved** is the claim that `-np` suppresses
+--- everything: it does not, and more importantly `whisper-cli` **exits 0 on
+--- some failures** — a file it cannot decode returns code 0, writes no JSON,
+--- and reports the reason only on stderr. The exit code alone was therefore
+--- never a sufficient test; see `M.failure_reason` and the no-JSON branch.
 
 local uv = vim.uv or vim.loop
 
@@ -60,10 +65,14 @@ function M.args(spec)
     "-oj",
     "-of",
     spec.out_prefix,
-    -- No system-info banner or per-segment prints on stdout — this plugin
-    -- reads the JSON file, and whisper.cpp's own progress spam would
-    -- otherwise be the only thing in `result.stdout`/`stderr` to look at
-    -- when something goes wrong.
+    -- Suppresses the system-info banner and the progress percentage. It does
+    -- **not** suppress everything, which the module header used to claim:
+    -- measured 2026-09-17 against a real build, a successful run still puts
+    -- the transcribed segment on stdout (`[00:00:00.000 --> …] And so my
+    -- fellow Americans…`) and three `read_audio_data:` lines on stderr. That
+    -- is harmless here — this plugin reads the JSON file, not the streams —
+    -- but it is why `M.failure_reason` picks the `error:` line out rather
+    -- than handing a reader everything stderr happened to contain.
     "-np",
   }
   if spec.lang then
@@ -76,6 +85,27 @@ function M.args(spec)
     argv[#argv + 1] = "-tr"
   end
   return argv
+end
+
+--- The `error:` line out of whisper-cli's stderr, or nil when there is none.
+---
+--- Pure and public so the parsing is assertable without the binary. What it
+--- picks out matters: `-np` leaves several `read_audio_data:` progress lines
+--- on stderr (measured 2026-09-17 — see `M.args` on what `-np` does and does
+--- not suppress), and handing all of them to a reader buries the one sentence
+--- that says what went wrong. The last `error:` line is that sentence;
+--- whisper.cpp prints the general one first and the specific one last.
+---@param stderr string|nil
+---@return string|nil
+function M.failure_reason(stderr)
+  if type(stderr) ~= "string" then return nil end
+  local reason = nil
+  for line in stderr:gmatch("[^\r\n]+") do
+    local message = line:match("^%s*error:%s*(.+)$")
+    if message then reason = vim.trim(message) end
+  end
+  if reason == "" then return nil end
+  return reason
 end
 
 --- whisper.cpp's own `-oj` shape: a `transcription` array of
@@ -199,7 +229,13 @@ function M.transcribe(wav_path, opts, callback)
 
     local fd = io.open(json_path, "r")
     if not fd then
-      finish(nil, "whisper-cli reported success but wrote no JSON: " .. json_path)
+      -- **`whisper-cli` exits 0 on some failures**, so the check above cannot
+      -- be the only one. Measured 2026-09-17 against a real build: a file it
+      -- cannot decode gives code **0**, writes no JSON, and puts
+      -- `error: failed to read audio file '…'` on stderr. Before this, the
+      -- reader got "reported success but wrote no JSON" and the actual
+      -- reason — sitting right there in stderr — was discarded.
+      finish(nil, M.failure_reason(result.stderr) or ("whisper-cli wrote no JSON: " .. json_path))
       return
     end
     local content = fd:read("*a")
