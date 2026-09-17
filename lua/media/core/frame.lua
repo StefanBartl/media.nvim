@@ -203,4 +203,36 @@ function M.frame(path, opts, callback)
   end)
 end
 
+--- Render a still nobody has asked for yet, and forget about it.
+---
+--- **The offer, not the decision.** A consumer stepping through a file knows
+--- where the reader is going next and this module does not; the state belongs
+--- to whoever owns the window, because two consumers scrubbing the same file
+--- must not share a cursor (ROADMAP.md, "Frame stepping"). So `media.nvim`
+--- offers this and `hover.nvim` decides when to call it — with the offset it
+--- would ask for on the next press, while the reader is still looking at this
+--- one.
+---
+--- **Why this needs no machinery of its own.** `media.core.cache.ensure`
+--- already joins a render that is in flight, and answers a finished one from a
+--- single `fs_stat`; `probe` is cached too. So the real call that follows a
+--- prefetch either finds the PNG on disk or waits on the process this started
+--- — never a second ffmpeg for the same still. That is the whole feature: it
+--- is `frame` with nobody listening.
+---
+--- The playback path has done this for its own windows since
+--- `hover.nvim@9442f96` — a decode plus its sampling was measured at ~0.6 s,
+--- so asking at the last frame arrives late every time. This is the same idea
+--- one level down, for the still-stepping path that never got it.
+---
+--- Errors are swallowed deliberately. A prefetch that fails costs the reader
+--- nothing, and the real call behind it reports properly; a notification about
+--- work nobody asked for would be the only visible consequence.
+---@param path string
+---@param opts Media.FrameOpts|nil
+---@return nil
+function M.prefetch(path, opts)
+  M.frame(path, opts, function() end)
+end
+
 return M

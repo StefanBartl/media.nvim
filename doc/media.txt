@@ -239,6 +239,8 @@ The reasoning for every default is in lua/media/config/DEFAULTS.lua.
 
     media.probe(path, function(probe, err) end)
     media.frame(path, { at = "10%", width = 800 }, function(png, err) end)
+    media.prefetch_frame(path, { at = "20%", width = 800 })  -- render early,
+                              -- no callback; for a consumer that steps
     media.frames(path, { count = 24, fps = 12 }, function(pngs, err) end)
     media.sheet(path, { rows = 3, cols = 4 }, function(png, err) end)
     media.play(path)          -- returns ok, err; hand off, not owned
