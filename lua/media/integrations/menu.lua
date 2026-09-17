@@ -40,15 +40,35 @@ function M.items(entries, on_pick)
   if not ok or #entries == 0 then return {} end
 
   local actions = require("media.hub.actions")
-  local kind = entries[1].kind
+
+  -- `for_entries`, not the first row's kind: a marked set may span kinds, and
+  -- offering one row's table for all of them puts ".srt" in front of a
+  -- screenshot. The same function the keyboard chooser calls, so the mouse and
+  -- the keys cannot come to offer different things.
+  local list, kind = actions.for_entries(entries)
 
   local out = {}
   local built = {}
-  for _, action in ipairs(actions.list(kind)) do
+  for _, action in ipairs(list) do
     -- Over a marked set, only what a batch means anything for — the same rule
     -- `media.hub.dashboard`'s own chooser applies.
     if #entries == 1 or actions.batchable(action) then
-      local tool = actions.availability(action, kind)
+      -- A mixed set has no single kind to ask about, so the answer is the
+      -- worst one across the rows: an action must not claim to be ready
+      -- because the first of twelve files happens to be.
+      local tool = { ok = true, tool = "" }
+      if kind then
+        tool = actions.availability(action, kind)
+      else
+        for _, entry in ipairs(entries) do
+          local one = actions.availability(action, entry.kind)
+          if not one.ok then
+            tool = one
+            break
+          end
+        end
+      end
+
       built[#built + 1] = contextmenu.entry(true, action.label, function()
         on_pick(action, tool)
       end, tool.ok and nil or (tool.reason or "unavailable"), tool.ok and {} or {
@@ -89,7 +109,10 @@ function M.bind(bufnr, winid, state)
     end
 
     return M.items(chosen, function(action, tool)
-      require("media.hub.dashboard").pick(chosen, action, tool)
+      -- The window by id: a pick made from the menu does not leave the
+      -- dashboard focused, and `:close` would take whatever window the menu
+      -- left current instead.
+      require("media.hub.dashboard").pick(chosen, action, tool, winid)
     end)
   end)
 end

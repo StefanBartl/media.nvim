@@ -254,7 +254,15 @@ function M.transcribe(path, opts, callback)
     ---@type Media.Transcribe.Progress
     local info = { phase = phase, engine = engine }
     job.phase = info
-    for _, w in ipairs(job.waiters) do
+    -- Snapshot first, for the reason `fan_out` does: an `on_phase` may cancel
+    -- its own handle — a float that gives up on the step it was just told
+    -- about — and `join`'s cancel does a `table.remove` on this very list.
+    -- Removing during `ipairs` skips the next waiter silently.
+    local waiters = {}
+    for i, w in ipairs(job.waiters) do
+      waiters[i] = w
+    end
+    for _, w in ipairs(waiters) do
       if w.on_phase then pcall(w.on_phase, info) end
     end
   end

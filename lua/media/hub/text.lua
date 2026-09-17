@@ -162,18 +162,32 @@ local function run_pdf(path, callback)
   local tool = pdf_tool()
   if not tool.ok then return callback(nil, tool.reason) end
 
+  -- **Answered once, whichever way this goes.** `extract` may call back
+  -- synchronously *and* then raise — a bad argument caught after the result
+  -- was already handed over — and the guard below would call the caller a
+  -- second time with an error for work that had in fact succeeded. Nothing in
+  -- this plugin's contract survives a callback firing twice.
+  local answered = false
+  ---@param result Media.Hub.Text|nil
+  ---@param err string|nil
+  local function done(result, err)
+    if answered then return end
+    answered = true
+    callback(result, err)
+  end
+
   local ok, err = pcall(require("pdfport").extract, {
     path = path,
     __callback = function(result)
-      if type(result) ~= "table" then return callback(nil, "pdfport returned nothing") end
+      if type(result) ~= "table" then return done(nil, "pdfport returned nothing") end
       -- `"partial"` is a result, not a failure: a document whose last pages
       -- could not be read still answers most of what was asked, and throwing
       -- that away would be the same mistake as refusing a run of frames
       -- because the file ended (see `media.core.frames`).
       if result.status == "error" or not result.text then
-        return callback(nil, result.error or "pdfport could not extract any text")
+        return done(nil, result.error or "pdfport could not extract any text")
       end
-      callback({
+      done({
         kind = "pdf",
         text = result.text,
         tool = result.backend or tool.tool,
@@ -184,7 +198,7 @@ local function run_pdf(path, callback)
   -- `extract` asserts on its arguments rather than returning an error, so a
   -- shape this module got wrong would otherwise surface as a raw Lua error out
   -- of a command.
-  if not ok then callback(nil, tostring(err)) end
+  if not ok then done(nil, tostring(err)) end
 end
 
 ---@internal
@@ -239,7 +253,14 @@ function M.run(path, opts, callback)
   -- saying so". Said as an error to the caller rather than notified here, so
   -- the command owns every message it prints.
   vim.schedule(function()
-    callback(nil, ("nothing here turns a %s into text"):format(vim.fn.fnamemodify(path, ":e")))
+    -- Named by extension when there is one; a file without one would otherwise
+    -- read as "turns a  into text".
+    local ext = vim.fn.fnamemodify(path, ":e")
+    callback(
+      nil,
+      ext ~= "" and ("nothing here turns a .%s into text"):format(ext)
+        or "nothing here turns this kind of file into text"
+    )
   end)
   return nil
 end

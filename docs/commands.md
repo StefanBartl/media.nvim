@@ -186,6 +186,24 @@ picking it explains rather than runs. Hiding it would answer "what can I do
 right now" when the question a dashboard is asked is "what is possible here" —
 and nobody ever learned a feature existed from a menu that did not mention it.
 
+### A sidecar is a plaintext copy, and a batch makes forty of them
+
+`:Media text` and the dashboard's actions write what they read to a file next
+to the source. For a screenshot of a terminal, a scan of a letter or a recorded
+call, that sidecar is a **searchable plaintext copy of whatever was in it** —
+and `<Tab>` over forty marked rows makes forty of them in one keystroke.
+
+Nothing here is doing anything surprising; it is the same thing
+`casedesk.nvim`'s OCR has always done, and the sidecars sit in plain sight next
+to their sources rather than somewhere a `grep` would miss. But the dashboard
+makes it a bulk operation, which is worth knowing before pointing it at a
+directory you have not looked at.
+
+The **stale** marker is the other half of this. If a source is later redacted
+in place (`:Image redact` does exactly that), its sidecar still holds the text
+from before — and the `!` is what says so rather than letting the old text pass
+as current.
+
 ### Not offered here, on purpose
 
 The roadmap's action table also lists *page → PNG* for a PDF and *extract

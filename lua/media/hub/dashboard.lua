@@ -37,6 +37,14 @@ local M = {}
 --- of rows, which is what a reader can act on before they filter.
 local PROBE_LIMIT = 50
 
+--- How many of those may be in flight at once.
+---
+--- A different bound from `PROBE_LIMIT` and the one the machine actually
+--- feels: the limit above says how much work there is, this says how much of
+--- it happens simultaneously. See `fill_details` for why the two are not the
+--- same number and what went wrong when only the first existed.
+local PROBE_CONCURRENCY = 4
+
 ---@internal
 --- The marker and the words for one row's status.
 ---@type table<Media.Hub.Status, { marker: string, suffix: string|nil }>
@@ -232,34 +240,63 @@ end
 ---@internal
 --- Probe up to `PROBE_LIMIT` entries and redraw as the answers arrive.
 ---
---- Fire-and-forget, and every callback checks the window is still there: a
+--- **A few at a time, not all at once.** `PROBE_LIMIT` bounds how many files
+--- are probed; `PROBE_CONCURRENCY` bounds how many are being probed *at the
+--- same moment*, and the second is the one that matters to the machine. The
+--- first version fired all fifty from one loop — fifty `ffprobe` processes
+--- spawned in a single tick, which is exactly what `media.hub.actions.run_batch`
+--- refuses to do one level up and for the same reason. Measured at 50 peak
+--- before this queue existed.
+---
+--- Four rather than one: `ffprobe` is a read of a header, not a decode, so a
+--- strictly sequential fill would leave the column blank far longer than it
+--- needs to be — but four spawns at a time is a queue, not a storm.
+---
+--- Fire-and-forget, and every callback checks the buffer is still there: a
 --- reader who closes the dashboard while this runs must not have a probe
 --- redraw a buffer that is gone. Only kinds `ffprobe` can answer for — a PDF's
 --- page count is `pdfinfo`'s, which this plugin does not own.
----@param entries Media.Hub.Entry[]
----@param details table<string, string>
+---@param state { entries: Media.Hub.Entry[], details: table<string, string>, marked: table<string, boolean> }
 ---@param bufnr integer
 ---@param winid integer
 ---@return nil
-local function fill_details(entries, details, bufnr, winid)
+local function fill_details(state, bufnr, winid)
   local ok, media = pcall(require, "media")
   if not ok or type(media.probe) ~= "function" then return end
 
-  local started = 0
-  for _, entry in ipairs(entries) do
-    if started >= PROBE_LIMIT then break end
+  ---@type Media.Hub.Entry[]
+  local queue = {}
+  for _, entry in ipairs(state.entries) do
+    if #queue >= PROBE_LIMIT then break end
     local probeable = entry.kind == "audio" or entry.kind == "video" or entry.kind == "image"
-    if probeable and details[entry.path] == "" then
-      started = started + 1
-      media.probe(entry.path, function()
-        if not vim.api.nvim_buf_is_valid(bufnr) then return end
-        -- Re-read through `M.detail` rather than using the probe directly:
-        -- one place decides what a kind's detail column says, and it is the
-        -- same one the first draw went through.
-        details[entry.path] = M.detail(entry)
-        redraw(bufnr, winid, M.rows(entries, details))
-      end)
-    end
+    if probeable and state.details[entry.path] == "" then queue[#queue + 1] = entry end
+  end
+
+  local next_index = 0
+
+  local function pump()
+    if not vim.api.nvim_buf_is_valid(bufnr) then return end
+    next_index = next_index + 1
+    local entry = queue[next_index]
+    if not entry then return end
+
+    media.probe(entry.path, function()
+      if not vim.api.nvim_buf_is_valid(bufnr) then return end
+      -- Re-read through `M.detail` rather than using the probe directly: one
+      -- place decides what a kind's detail column says, and it is the same one
+      -- the first draw went through.
+      state.details[entry.path] = M.detail(entry)
+      -- **`state.marked`, not an empty table.** Without it a probe landing
+      -- after the reader marked a row wiped the `●` off the screen while the
+      -- mark stayed live — so the next `<CR>` acted on rows nobody could see
+      -- were selected. Found in review, 2026-09-17.
+      redraw(bufnr, winid, M.rows(state.entries, state.details, state.marked))
+      pump()
+    end)
+  end
+
+  for _ = 1, math.min(PROBE_CONCURRENCY, #queue) do
+    pump()
   end
 end
 
@@ -269,6 +306,23 @@ end
 ---@return nil
 local function say(message, level)
   vim.notify(message, level or vim.log.levels.INFO, { title = "media.nvim" })
+end
+
+---@internal
+--- Close the dashboard's own window.
+---
+--- **By id, not with `:close`.** `:close` closes whatever window is *current*,
+--- and the paths into here do not all start with the dashboard focused — the
+--- context menu is its own window, and whichever one it leaves behind is the
+--- one `:close` would have taken. Found in review, 2026-09-17.
+---
+--- A nil `winid` means the caller had none to give, and then doing nothing is
+--- right: better a dashboard left open than somebody else's window shut.
+---@param winid integer|nil
+---@return nil
+local function close_dashboard(winid)
+  if not winid or not vim.api.nvim_win_is_valid(winid) then return end
+  pcall(vim.api.nvim_win_close, winid, false)
 end
 
 ---@internal
@@ -365,8 +419,9 @@ end
 ---@param entries Media.Hub.Entry[]
 ---@param action Media.Hub.Action
 ---@param tool Media.Hub.Tool
+---@param winid integer|nil  # the dashboard's window, to close before acting
 ---@return nil
-function M.pick(entries, action, tool)
+function M.pick(entries, action, tool, winid)
   if #entries == 0 then return end
 
   if not tool.ok then
@@ -381,12 +436,12 @@ function M.pick(entries, action, tool)
     -- Closed first: the alternative is a list whose status column goes stale
     -- under the reader as the batch writes sidecars behind it, which is the
     -- exact failure this plugin has a column for.
-    pcall(vim.cmd, "close")
+    close_dashboard(winid)
     run_batch(entries, action)
     return
   end
 
-  M.navigate(entries[1], action.id)
+  M.navigate(entries[1], action.id, winid)
 end
 
 --- Perform one of the navigation actions on `entry`.
@@ -396,15 +451,16 @@ end
 --- defect `media.bindings.usrcmds`' own header warns about.
 ---@param entry Media.Hub.Entry
 ---@param id string
+---@param winid integer|nil  # the dashboard's window, to close before acting
 ---@return nil
-function M.navigate(entry, id)
+function M.navigate(entry, id, winid)
   if id == "describe" then
     require("media.ui").show_probe(entry.path)
     return
   end
 
   if id == "open_source" then
-    pcall(vim.cmd, "close")
+    close_dashboard(winid)
     vim.cmd.edit(vim.fn.fnameescape(entry.path))
     return
   end
@@ -429,7 +485,7 @@ function M.navigate(entry, id)
   if entry.status == "stale" then
     say("this text is older than the file it describes", vim.log.levels.WARN)
   end
-  pcall(vim.cmd, "close")
+  close_dashboard(winid)
   vim.cmd.edit(vim.fn.fnameescape(entry.sidecar))
 end
 
@@ -446,18 +502,39 @@ end
 --- here", and nobody ever learned a feature existed from a menu that did not
 --- mention it.
 ---@param entries Media.Hub.Entry[]  # one row, or the marked set
----@param kind Media.Hub.Kind
+---@param winid integer|nil  # the dashboard's window, closed before a run starts
 ---@return nil
-local function choose_action(entries, kind)
+local function choose_action(entries, winid)
   local actions = require("media.hub.actions")
+
+  -- `for_entries`, not the first row's kind: a marked set may span kinds, and
+  -- offering one row's table for all of them puts ".srt" in front of a
+  -- screenshot. See its own note.
+  local list, kind = actions.for_entries(entries)
 
   ---@type { action: Media.Hub.Action, tool: Media.Hub.Tool }[]
   local offered = {}
-  for _, action in ipairs(actions.list(kind)) do
+  for _, action in ipairs(list) do
     -- Over a marked set, only the ones a batch means anything for: "open the
     -- source file" over twelve rows is twelve windows, not a batch.
     if #entries == 1 or actions.batchable(action) then
-      offered[#offered + 1] = { action = action, tool = actions.availability(action, kind) }
+      -- A mixed set has no single kind to ask about, so availability is asked
+      -- per row and the answer is the worst one: an action offered over twelve
+      -- files must not claim to be ready because the first of them is.
+      local tool
+      if kind then
+        tool = actions.availability(action, kind)
+      else
+        tool = { ok = true, tool = "" }
+        for _, entry in ipairs(entries) do
+          local one = actions.availability(action, entry.kind)
+          if not one.ok then
+            tool = one
+            break
+          end
+        end
+      end
+      offered[#offered + 1] = { action = action, tool = tool }
     end
   end
 
@@ -475,7 +552,7 @@ local function choose_action(entries, kind)
       return ("%s  (%s)"):format(item.action.label, item.tool.reason or "unavailable")
     end,
   }, function(item)
-    if item then M.pick(entries, item.action, item.tool) end
+    if item then M.pick(entries, item.action, item.tool, winid) end
   end)
 end
 
@@ -539,7 +616,7 @@ local function bind(bufnr, winid, state)
     -- A marked set has no single obvious action — the rows may be four kinds
     -- with four different verbs — so it asks. One row does not.
     if #chosen > 1 then
-      choose_action(chosen, chosen[1].kind)
+      choose_action(chosen, winid)
       return
     end
 
@@ -551,7 +628,7 @@ local function bind(bufnr, winid, state)
     end
 
     if not action.needs_text then
-      M.navigate(entry, action.id)
+      M.navigate(entry, action.id, winid)
       return
     end
 
@@ -564,29 +641,29 @@ local function bind(bufnr, winid, state)
       return
     end
 
-    pcall(vim.cmd, "close")
+    close_dashboard(winid)
     run_batch(chosen, action)
   end)
 
   on("a", "media: choose an action", function()
     local chosen = targets()
-    if #chosen > 0 then choose_action(chosen, chosen[1].kind) end
+    if #chosen > 0 then choose_action(chosen, winid) end
   end)
 
   on("o", "media: open the existing text", function(entry)
-    M.navigate(entry, "open_text")
+    M.navigate(entry, "open_text", winid)
   end)
 
   on("gf", "media: open the source file", function(entry)
-    M.navigate(entry, "open_source")
+    M.navigate(entry, "open_source", winid)
   end)
 
   on("p", "media: describe this file", function(entry)
-    M.navigate(entry, "describe")
+    M.navigate(entry, "describe", winid)
   end)
 
   vim.keymap.set("n", "r", function()
-    vim.cmd("close")
+    close_dashboard(winid)
     M.open(state.scope, state.arg)
   end, { buffer = bufnr, nowait = true, silent = true, desc = "media: rescan" })
 
@@ -651,14 +728,17 @@ function M.open(scope, arg)
   })
   if not (winid and bufnr) then return end
 
-  bind(bufnr, winid, {
+  local state = {
     entries = entries,
     details = details,
     marked = {},
     scope = scope,
     arg = arg,
-  })
-  fill_details(entries, details, bufnr, winid)
+  }
+  bind(bufnr, winid, state)
+  -- The same `state` both halves read, so a redraw from a late probe and a
+  -- redraw from a `<Tab>` cannot disagree about what is marked.
+  fill_details(state, bufnr, winid)
 end
 
 return M

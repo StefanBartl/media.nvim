@@ -83,6 +83,37 @@ return function(H)
       "a sidecar is skipped: listed, the next scan would offer to extract text from it"
     )
 
+    -- ── a symlink to a media file is followed, one to a directory is not ──
+    -- The gap this closes: `fs_scandir_next` reports "link", and treating that
+    -- as neither a file nor a directory drops it silently — which for a media
+    -- library is the common case, not an edge one. Skipped where the platform
+    -- will not make one (Windows needs developer mode or admin).
+    local link = root .. "/linked-clip.mp4"
+    local made_link = uv.fs_symlink(root .. "/talks/standup.mp4", link)
+    if made_link then
+      local with_link = scan.walk(root, nil, 20000)
+      local saw_link = false
+      for _, p in ipairs(with_link) do
+        if p:find("linked%-clip%.mp4") then saw_link = true end
+      end
+      H.ok(saw_link, "a symlink pointing at a video is walked like the video it points at")
+
+      -- A linked directory is deliberately NOT descended into: `a/here -> ..`
+      -- is a cycle, and the entry cap would bound the damage without bounding
+      -- the nonsense.
+      local loop = root .. "/loop"
+      if uv.fs_symlink(root, loop, { dir = true }) then
+        local with_loop = scan.walk(root, nil, 20000)
+        local under_loop = 0
+        for _, p in ipairs(with_loop) do
+          if p:find("/loop/") then under_loop = under_loop + 1 end
+        end
+        H.eq(under_loop, 0, "a symlinked directory is not followed — that way lies a cycle")
+        vim.fn.delete(loop)
+      end
+      vim.fn.delete(link)
+    end
+
     local sorted = true
     for i = 2, #walked do
       if walked[i - 1] > walked[i] then sorted = false end

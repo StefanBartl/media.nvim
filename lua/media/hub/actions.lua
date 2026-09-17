@@ -146,6 +146,41 @@ function M.availability(action, kind)
   return require("media.hub.text").tool(kind)
 end
 
+---@internal
+--- The kind-agnostic actions, for a marked set that spans several kinds.
+---
+--- `media.hub.text` routes per file, so these run the right tool on each row
+--- without caring what it is — which is the whole point of `:Media text`, one
+--- level up.
+---@type Media.Hub.Action[]
+local MIXED = {
+  { id = "text_sidecar", label = "Text → sidecar", mode = "sidecar", needs_text = true },
+  { id = "text_buffer", label = "Text → buffer", mode = "buffer", needs_text = true },
+}
+
+--- The actions valid for **every** kind in `entries`.
+---
+--- **A marked set may span kinds, and the per-kind table does not.** Taking
+--- the first row's kind and offering its table — which is what this did first —
+--- puts "Transcribe → .srt" in front of a set holding a screenshot, and the
+--- screenshot then fails at delivery with "out=srt is not available for this
+--- kind". The menu offered something that could not work, and the reader found
+--- out after the run.
+---
+--- One kind is its own table, unchanged. Several kinds get the two routes that
+--- mean the same thing everywhere: to a sidecar, or to a buffer. Subtitles are
+--- not among them, because a set containing an image has no honest `.srt`.
+---@param entries Media.Hub.Entry[]
+---@return Media.Hub.Action[]
+---@return Media.Hub.Kind|nil kind  # nil when the set spans more than one
+function M.for_entries(entries)
+  local kind = entries[1] and entries[1].kind or nil
+  for _, entry in ipairs(entries) do
+    if entry.kind ~= kind then return MIXED, nil end
+  end
+  return kind and M.list(kind) or {}, kind
+end
+
 --- Whether `action` makes sense over several rows at once.
 ---
 --- Only the ones that do work. "Open the source file" over twelve rows is

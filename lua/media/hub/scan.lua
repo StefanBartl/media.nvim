@@ -140,6 +140,27 @@ function M.walk(root, exclude, max_entries)
           return found
         end
         local full = dir .. "/" .. name
+
+        -- **A symlink to a file is resolved; one to a directory is not.**
+        --
+        -- `fs_scandir_next` reports `"link"`, and treating that as neither a
+        -- file nor a directory drops it silently — which for a media library
+        -- is the common case rather than an edge one: a directory of symlinks
+        -- into a NAS scanned as empty. One extra `fs_stat`, and only for the
+        -- entries that are actually links. `images.browse.walk` still has the
+        -- gap this closes. Found in review, 2026-09-17.
+        --
+        -- Descending into a linked *directory* is the other half, and it is
+        -- deliberately not done: `a/here -> ..` is a cycle, and the only thing
+        -- standing between it and a hang would be `max_entries` — which bounds
+        -- the damage but not the nonsense, since everything it found on the way
+        -- would be the same files under twenty made-up paths. Following files
+        -- gets the case people actually have without that.
+        if entry_kind == "link" then
+          local target = uv.fs_stat(full)
+          entry_kind = (target and target.type == "file") and "file" or nil
+        end
+
         if entry_kind == "directory" then
           if not exclude_set[name] then stack[#stack + 1] = full end
         elseif entry_kind == "file" then
