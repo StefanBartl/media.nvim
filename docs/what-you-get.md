@@ -8,6 +8,7 @@
 | `<leader>Mo` | normal | play in an external player |
 | `:Media [path]` | command | the same description, by name |
 | `:Media waveform [path]` / `:Media spectrogram [path]` | command | a picture of the audio track |
+| `:Media text [path]` | command | anything to text — image → OCR, PDF → extract, audio/video → transcribe |
 | `:Media transcribe [path]` | command | speech to text — a buffer, a `.transcript.md` sidecar, or `.srt`/`.vtt` subtitles |
 | `:Media engines` | command | list transcription engines and their availability |
 | `:Media window [path] [at=]` | command | play in a real mpv window, from `at` |

@@ -99,9 +99,16 @@ local PHASE_TEXT = {
 --- how long it has been running.
 ---
 --- Returns `nil` when lib.nvim is not installed. Every call site guards on it;
---- the transcription itself does not depend on an indicator existing.
+--- the work itself does not depend on an indicator existing.
+---
+--- `initial` is what it says before the first phase is reported — and for OCR
+--- and PDF extraction it is all it ever says, because those have no phases to
+--- report. They keep the indicator anyway: the 150 ms `lib.nvim.progress`
+--- waits before rendering means a fast one never flashes, and a scan of a
+--- two-hundred-page document is not fast.
+---@param initial string
 ---@return { phase: fun(info: Media.Transcribe.Progress): nil, finish: fun(text: string|nil): nil, on_cancel: fun(fn: fun(): nil): nil }|nil
-local function start_progress()
+local function start_progress(initial)
   local ok, progress = pcall(require, "lib.nvim.progress")
   if not ok then return nil end
 
@@ -112,12 +119,18 @@ local function start_progress()
 
   local uv = vim.uv or vim.loop
   local started = uv.now()
-  local text = "transcribing"
+  local text = initial
 
   ---@return nil
   local function render()
     handle:update({ text = ("%s — %s"):format(text, elapsed((uv.now() - started) / 1000)) })
   end
+
+  -- At once, before any timer or phase: `lib.nvim.progress` renders whatever
+  -- the handle holds when its 150 ms delay elapses, and without this that is
+  -- an empty string. A route with no phases to report (OCR, PDF extraction)
+  -- would otherwise show a bare "[media]" until the first second ticked.
+  render()
 
   -- One second, because that is the resolution of what it displays. A faster
   -- tick would redraw the same string.
@@ -166,7 +179,7 @@ end
 
 --- Perform one action on one path. The single body behind both the commands and
 --- the keymaps.
----@param action "probe"|"frame"|"sheet"|"waveform"|"spectrogram"|"transcribe"|"play"|"window"
+---@param action "probe"|"frame"|"sheet"|"waveform"|"spectrogram"|"text"|"transcribe"|"play"|"window"
 ---@param path string
 ---@param opts table|nil  # forwarded to frame/sheet/window
 ---@return nil
@@ -219,6 +232,94 @@ function M.run(action, path, opts)
     return
   end
 
+  if action == "text" then
+    -- **The kind-agnostic verb, and the reason this plugin is called `media`.**
+    -- One thing to remember; `media.hub.text` picks the tool. Everything the
+    -- transcribe route below learned the hard way applies here too: reject a
+    -- bad `out=` and an absent tool *before* the run, show an indicator while
+    -- it works, and report the outcome exactly once.
+    local hub = require("media.hub.text")
+    local kinds = require("media.hub.kinds")
+    local kind = kinds.of(path)
+
+    -- Said with the fix, not just the fact. "images.nvim is not installed" on
+    -- its own leaves the reader to work out that OCR is where it lives.
+    local tool = hub.tool(kind)
+    if not tool.ok then
+      say(
+        tool.fix and ("%s — %s"):format(tool.reason, tool.fix) or (tool.reason or "cannot run"),
+        vim.log.levels.WARN
+      )
+      return
+    end
+
+    local mode = (opts and opts.output) or require("media.config").get().transcribe.output
+    local modes = hub.modes(kind)
+    if not vim.tbl_contains(modes, mode) then
+      -- Per kind, not one global list: subtitles need timestamps, so `srt` is
+      -- a real answer for a video and a meaningless one for a screenshot.
+      -- The kind in brackets rather than after an article: "a image" is what
+      -- an article in a format string gets you the first time a kind is added
+      -- that does not take "a".
+      say(
+        ("out=%s is not available for this kind (%s) — expected one of %s"):format(
+          tostring(mode),
+          kind,
+          table.concat(modes, ", ")
+        ),
+        vim.log.levels.ERROR
+      )
+      return
+    end
+
+    local labels = {
+      image = "reading the image",
+      pdf = "extracting text",
+      audio = "transcribing",
+      video = "transcribing",
+    }
+    local progress = start_progress(labels[kind] or "working")
+    if not progress then say((labels[kind] or "working") .. "…") end
+
+    local job = hub.run(
+      path,
+      vim.tbl_extend("force", opts or {}, {
+        on_phase = progress and progress.phase or nil,
+      }),
+      function(result, err)
+        if not result then
+          if progress then progress.finish("failed") end
+          say(err or "could not turn this file into text", vim.log.levels.ERROR)
+          return
+        end
+        local ok, derr = hub.deliver(path, result, mode)
+        if not ok then
+          if progress then progress.finish("failed") end
+          say(derr or "could not deliver the text", vim.log.levels.ERROR)
+          return
+        end
+        local written = hub.written_path(path, kind, mode)
+        local done = written and ("wrote " .. written) or ("%s: done"):format(kinds.verb(kind))
+        if progress then
+          progress.finish(done)
+        elseif written then
+          say(done)
+        end
+      end
+    )
+
+    -- Only the transcription route hands one back — OCR and PDF extraction
+    -- offer nothing to cancel, and `hub.run` says so by answering nil rather
+    -- than inventing a `cancel()` that does nothing.
+    if progress and job then
+      progress.on_cancel(function()
+        job.cancel()
+        say("cancelled")
+      end)
+    end
+    return
+  end
+
   if action == "transcribe" then
     local output = require("media.output")
     local mode = (opts and opts.output) or require("media.config").get().transcribe.output
@@ -242,7 +343,7 @@ function M.run(action, path, opts)
     -- for all of them. `progress` is the live indicator; the notify stays as
     -- the fallback for an install without lib.nvim, so the command is never
     -- completely mute.
-    local progress = start_progress()
+    local progress = start_progress("transcribing")
     if not progress then say("transcribing…") end
 
     local job = require("media").transcribe(
@@ -470,6 +571,18 @@ function M.register()
       },
 
       {
+        path = { "text" },
+        args = path_arg,
+        kv = { { key = "out", type = "STRING" } },
+        desc = "Anything to text  :Media text [path] [out=buffer|sidecar|srt|vtt]",
+        run = function(ctx)
+          local path = require_path(ctx, "Media text")
+          if not path then return end
+          M.run("text", path, { output = (ctx.kv or {}).out })
+        end,
+      },
+
+      {
         path = { "transcribe" },
         args = path_arg,
         kv = {
@@ -583,6 +696,7 @@ function M.register_fallback()
           "sheet",
           "waveform",
           "spectrogram",
+          "text",
           "transcribe",
           "engines",
           "play",

@@ -39,6 +39,7 @@ local specs = {
   "whisper_cpp_spec.lua",
   "hub_kinds_spec.lua",
   "hub_scan_spec.lua",
+  "hub_text_spec.lua",
   "segments_spec.lua",
   "srt_spec.lua",
   "vtt_spec.lua",
