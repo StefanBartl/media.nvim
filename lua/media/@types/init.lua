@@ -14,6 +14,7 @@
 ---@field waveform Media.Config.Waveform
 ---@field transcribe Media.Config.Transcribe
 ---@field cache Media.Config.Cache
+---@field hub Media.Config.Hub
 ---@field progress_style Media.Config.ProgressStyle
 ---@field player string|string[]|nil
 ---@field window Media.Config.Window
@@ -75,6 +76,14 @@
 --- `lib.nvim.progress` would have accepted, which is a warning, not a break.
 ---@alias Media.Config.ProgressStyle "auto"|"notify"|"statusline"|"fidget"|"float"|"kit"
 
+---@class Media.Config.Hub
+---@field exclude string[]   # extra directory names a scan skips; `.git` and `node_modules` always are
+---@field max_entries integer  # quiet stop, not an error — see `config/DEFAULTS.lua`
+
+---@class Media.Opts.Hub
+---@field exclude? string[]
+---@field max_entries? integer
+
 ---@class Media.Config.Cache
 ---@field enabled boolean
 ---@field dir string|nil
@@ -109,6 +118,7 @@
 ---@field waveform? Media.Opts.Waveform
 ---@field transcribe? Media.Opts.Transcribe
 ---@field cache? Media.Opts.Cache
+---@field hub? Media.Opts.Hub
 ---@field progress_style? Media.Config.ProgressStyle
 ---@field player? string|string[]
 ---@field window? Media.Opts.Window

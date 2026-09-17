@@ -37,6 +37,8 @@ local specs = {
   "waveform_args_spec.lua",
   "normalize_args_spec.lua",
   "whisper_cpp_spec.lua",
+  "hub_kinds_spec.lua",
+  "hub_scan_spec.lua",
   "segments_spec.lua",
   "srt_spec.lua",
   "vtt_spec.lua",

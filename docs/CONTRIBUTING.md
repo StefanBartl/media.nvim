@@ -36,6 +36,9 @@ lua/media/
     sidecar.lua         -- `<file>.transcript.md`
     srt.lua             -- SubRip; the comma in its timestamp is the classic trap
     vtt.lua             -- WebVTT; cue text is markup, unlike SubRip's
+  hub/
+    kinds.lua           -- image | pdf | audio | video | other, and the sidecar each would write
+    scan.lua            -- cfile/cwd/path=<dir>, the walk, and missing | stale | ok | none
   bindings/
     init.lua            -- one entry point, idempotent
     keymaps.lua         -- the four keys
