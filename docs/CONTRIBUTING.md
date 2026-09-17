@@ -20,7 +20,7 @@ lua/media/
     waveform.lua        -- a waveform or spectrogram picture of the audio track
     audio.lua           -- an audio-only mpv, talked to over its JSON IPC
     player.lua          -- a real mpv window, opened on a file and owned by its caller
-    cache.lua           -- the on-disk store and the request coalescing
+    cache.lua           -- the on-disk store, the request coalescing, and the render queue
     play.lua            -- the handoff to a real player
     proc.lua            -- stopping a spawned process -- which on Windows is not `kill`
     normalize.lua       -- any file with sound, reduced to 16 kHz mono WAV

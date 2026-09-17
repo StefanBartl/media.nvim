@@ -225,6 +225,20 @@ return {
     dir = nil,
   },
 
+  --- How many `ffmpeg` renders may run at once.
+  ---
+  --- **A bound on a storm, not a throughput setting.** Raising it does not make
+  --- a directory of thumbnails appear sooner: each render is already a
+  --- multi-threaded decode, and four of them on four cores is the point at
+  --- which they start taking the work off each other. What this prevents is the
+  --- other end — holding a paging key down in a video hover measured at 30
+  --- concurrent processes, and 60 with prefetching behind it (2026-09-17).
+  ---
+  --- A playback window jumps the queue regardless of this number, because it is
+  --- the one render with a deadline; see `media.core.cache`'s header.
+  ---@type integer
+  render_concurrency = 4,
+
   --- The dashboard (`:Media`, `:Media dashboard`) — what a scan walks into and
   --- how far it goes before giving up. ROADMAP.md's "The hub" has the rest.
   hub = {

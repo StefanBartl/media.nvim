@@ -140,10 +140,19 @@ function M.frames(path, opts, callback)
   local cancelled = false
   ---@type vim.SystemObj|nil
   local proc = nil
+  --- The queue slot, while this is waiting for one. Giving up on a run that has
+  --- not started yet has to take it out of the queue, or the decode happens
+  --- later for a hover that is long gone.
+  ---@type { cancel: fun(): nil }|nil
+  local queued_render = nil
 
   local handle = {
     cancel = function()
       cancelled = true
+      if queued_render then
+        pcall(queued_render.cancel)
+        queued_render = nil
+      end
       if proc then
         pcall(function()
           require("media.core.proc").stop(proc)
@@ -205,7 +214,10 @@ function M.frames(path, opts, callback)
     -- order, so if it exists the run was started, and `existing_prefix` says
     -- how far it got. Using the *last* frame instead would re-render every
     -- run that legitimately produced fewer frames than asked for.
-    require("media.core.cache").ensure(outs[1], function(done)
+    -- `"high"`: a playback window has a deadline the other renders do not. The
+    -- transport asks a second before it needs the next one, and a queue of
+    -- stills ahead of it is longer than that. See `media.core.cache`'s header.
+    queued_render = require("media.core.cache").ensure(outs[1], function(done)
       local argv = M.args({
         ffmpeg = bin,
         path = path,
@@ -225,6 +237,7 @@ function M.frames(path, opts, callback)
         done(nil)
       end)
     end, function(_, err)
+      queued_render = nil
       if err then
         finish(nil, err)
         return
@@ -235,7 +248,7 @@ function M.frames(path, opts, callback)
         return
       end
       finish(pngs, nil)
-    end)
+    end, { priority = "high" })
   end)
 
   return handle
