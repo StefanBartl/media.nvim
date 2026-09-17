@@ -97,6 +97,48 @@ frequencies are in this clip rather than how loud it is at each moment.
 | `width=` | pixels | `1200` |
 | `height=` | pixels | `300` |
 
+## `:Media text [path] [out=]`
+
+**One verb, whatever the file is.** This is the reason the plugin is called
+`media` and not `transcribe`: an image, a PDF, an audio file and a video are
+four different tools away from being text, and remembering which is which is
+not work worth doing.
+
+| Kind | Goes to | Produced by |
+| --- | --- | --- |
+| image | `images.ocr.run` | tesseract, through images.nvim |
+| pdf | `pdfport.extract` | whichever of pdfport's backends can read it |
+| audio, video | this plugin's own dispatcher | whisper.cpp |
+| anything else | nothing — it says so | — |
+
+`out=` is the same argument `:Media transcribe` takes, but **the modes on
+offer depend on the kind**: `srt` and `vtt` need timestamps, so they are
+available for audio and video and nowhere else. A page of OCR has no segments
+to put a cue around.
+
+| Kind | `out=` |
+| --- | --- |
+| image | `buffer`, `sidecar` (`<file>.ocr.md`) |
+| pdf | `buffer`, `sidecar` (`<file>.text.md`) |
+| audio, video | `buffer`, `sidecar` (`<file>.transcript.md`), `srt`, `vtt` |
+
+**Three sidecar names, because they are three different operations.** OCR
+misreads, transcription mishears, extraction is exact — and the name is the
+only warning a reader gets about how much to trust the file. It is also what
+lets a corpus tool exclude the two lossy ones and keep the third.
+
+**Every dependency is soft.** No images.nvim costs OCR and nothing else; no
+pdfport.nvim costs PDFs and nothing else. What you get instead is the reason
+and the fix, said before anything starts:
+
+```
+images.nvim is not installed — it is the plugin that owns OCR in this ecosystem
+tesseract was not found — install tesseract, or set images.nvim's `ocr.bin`
+```
+
+Audio and video get the same live indicator, cancel key and `progress_style`
+as `:Media transcribe`, because they are the same run.
+
 ## `:Media transcribe [path] [engine=] [lang=] [task=] [out=]`
 
 Turns `path`'s speech into text: probes it, extracts a 16 kHz mono WAV,

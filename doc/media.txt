@@ -84,6 +84,24 @@ before you press one.
                         question answered: frequency content rather than
                         loudness. Default: 1200x300.
 
+:Media text [path] [out=]
+                        Anything to text, whatever the file is -- the
+                        kind-agnostic verb, and the reason this plugin is
+                        called `media` and not `transcribe`:
+                          image       -> images.ocr.run (tesseract)
+                          pdf         -> pdfport.extract
+                          audio/video -> this plugin's own dispatcher
+                          anything else -> says so, and does nothing
+                        `out=` depends on the kind: srt and vtt need
+                        timestamps, so they are offered for audio and video
+                        only. Each kind writes its own sidecar name --
+                        <file>.ocr.md, <file>.text.md, <file>.transcript.md
+                        -- because OCR misreads, transcription mishears and
+                        extraction is exact, and the name is the only warning
+                        a reader gets. Every dependency is soft: a missing
+                        images.nvim costs OCR and nothing else, and says so
+                        with the fix.
+
 :Media transcribe [path] [engine=] [lang=] [task=] [out=]
                         Speech to text: probe, extract a 16 kHz mono WAV,
                         run it through the resolved engine, deliver it.

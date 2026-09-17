@@ -39,6 +39,7 @@ lua/media/
   hub/
     kinds.lua           -- image | pdf | audio | video | other, and the sidecar each would write
     scan.lua            -- cfile/cwd/path=<dir>, the walk, and missing | stale | ok | none
+    text.lua            -- `:Media text` -- one verb, four kinds, every route a pcall
   bindings/
     init.lua            -- one entry point, idempotent
     keymaps.lua         -- the four keys

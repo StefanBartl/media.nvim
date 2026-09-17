@@ -10,6 +10,7 @@ A handful of answers, and nothing else.
 | **Frame run** | A stretch of the file as a numbered sequence of stills, one ffmpeg pass, cancellable — what a consumer that can draw cells turns into moving picture. |
 | **Waveform / spectrogram** | A picture of the audio track — the sound equivalent of a poster frame, for a file (an mp3 without cover art) that has no picture to show one of. |
 | **Speech to text** | `media.transcribe()` / `:Media transcribe` — probe, extract a WAV, run it through a local transcription engine (`whisper.cpp`; one engine so far), deliver a buffer, a `.transcript.md` sidecar, or SRT/VTT subtitles. See [commands.md](commands.md#media-transcribe-path-engine-lang-task-out). |
+| **Anything to text** | `:Media text` — one verb across all four kinds: an image goes to images.nvim's OCR, a PDF to pdfport, audio and video to the transcription engine above. This plugin is the one place in the ecosystem allowed to `pcall` its way to all three, which is why every dependency here stays soft. |
 
 Three details are the reason this is a plugin rather than a `vim.system` call in
 your config:
