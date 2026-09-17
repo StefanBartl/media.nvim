@@ -51,11 +51,10 @@
     {
       "bin": "whisper-cli",
       "required": false,
-      "why": "Turns speech into text, locally and without Python. Needed by `:Media transcribe` and by `:Media text` on an audio or video file. A GGML model file is needed as well and is NOT installed by this — models run to gigabytes, so `transcribe.whisper_cpp.model` is set by hand and `:checkhealth media` reports which of the two is missing.",
+      "why": "Turns speech into text, locally and without Python. Needed by `:Media transcribe` and by `:Media text` on an audio or video file. Outside Arch there is no package: whisper.cpp is built from source (`cmake -B build && cmake --build build -j --config Release`), and the binary is `whisper-cli` — set `bin[\"whisper-cli\"]` if your build names it differently or puts it off PATH. A GGML model is needed as well and is NOT installed by this: models run to gigabytes, so `transcribe.whisper_cpp.model` is set by hand and `:checkhealth media` reports which of the two is missing.",
+      "see": "https://github.com/ggml-org/whisper.cpp",
       "pkg": {
-        "brew": "whisper-cpp",
-        "pacman": "whisper.cpp",
-        "winget": "ggerganov.whisper.cpp"
+        "pacman": "whisper-cpp"
       }
     },
     {
