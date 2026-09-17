@@ -378,8 +378,16 @@ return function(H)
 
       -- The cache write is async and fire-and-forget (does not gate the
       -- callback above), so give it a moment to land before reading it back.
-      vim.wait(500, function()
-        return vim.uv.fs_stat(cache_path) ~= nil
+      --
+      -- Waiting for a non-empty **size**, not for the file to exist:
+      -- `write_file_async` is an `fs_open` followed by an `fs_write`, so
+      -- between the two the path is there and holds nothing. Waiting on
+      -- existence alone let this read a zero-byte file and fail with
+      -- `"" does not match "fresh result"` — observed once in a hundred runs,
+      -- which is the worst frequency a gate can have.
+      vim.wait(2000, function()
+        local stat = vim.uv.fs_stat(cache_path)
+        return stat ~= nil and stat.size > 0
       end, 5)
       local fd = io.open(cache_path, "r")
       H.ok(fd ~= nil, "the fresh result was written to the cache path")

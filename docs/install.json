@@ -1,0 +1,78 @@
+{
+  "tools": [
+    {
+      "bin": "ffmpeg",
+      "required": true,
+      "why": "Produces every picture this plugin makes — the poster frame, the contact sheet, the frame run behind block-graphics playback, the waveform and the spectrogram — and extracts the 16 kHz mono WAV that transcription needs. Nothing here renders without it.",
+      "pkg": {
+        "apt": "ffmpeg",
+        "dnf": "ffmpeg",
+        "pacman": "ffmpeg",
+        "zypper": "ffmpeg",
+        "apk": "ffmpeg",
+        "brew": "ffmpeg",
+        "winget": "Gyan.FFmpeg",
+        "scoop": "ffmpeg",
+        "choco": "ffmpeg"
+      }
+    },
+    {
+      "bin": "ffprobe",
+      "required": true,
+      "why": "Answers what is in a file: duration, dimensions, codecs, whether there is a moving picture at all. `:Media probe` is this, and every renderer asks it first — a percentage offset needs a duration, and a file with no video stream has no frame to extract. Ships with ffmpeg.",
+      "pkg": {
+        "apt": "ffmpeg",
+        "dnf": "ffmpeg",
+        "pacman": "ffmpeg",
+        "zypper": "ffmpeg",
+        "apk": "ffmpeg",
+        "brew": "ffmpeg",
+        "winget": "Gyan.FFmpeg",
+        "scoop": "ffmpeg",
+        "choco": "ffmpeg"
+      }
+    },
+    {
+      "bin": "mpv",
+      "required": false,
+      "why": "Two things, both optional. `:Media window` opens a real player window this plugin owns and can stop; and `media.audio` drives the sound for a consumer drawing its own picture, over mpv's JSON IPC socket — the clock a Lua timer cannot be. Without it, `:Media play` still hands the file to whatever the system opens it with.",
+      "pkg": {
+        "apt": "mpv",
+        "dnf": "mpv",
+        "pacman": "mpv",
+        "zypper": "mpv",
+        "apk": "mpv",
+        "brew": "mpv",
+        "winget": "shinchiro.mpv",
+        "scoop": "mpv",
+        "choco": "mpv"
+      }
+    },
+    {
+      "bin": "whisper-cli",
+      "required": false,
+      "why": "Turns speech into text, locally and without Python. Needed by `:Media transcribe` and by `:Media text` on an audio or video file. A GGML model file is needed as well and is NOT installed by this — models run to gigabytes, so `transcribe.whisper_cpp.model` is set by hand and `:checkhealth media` reports which of the two is missing.",
+      "pkg": {
+        "brew": "whisper-cpp",
+        "pacman": "whisper.cpp",
+        "winget": "ggerganov.whisper.cpp"
+      }
+    },
+    {
+      "bin": "tesseract",
+      "required": false,
+      "why": "OCR for the image rows of `:Media dashboard` and for `:Media text` on a picture. Reached through images.nvim, which owns OCR in this ecosystem — media.nvim never calls it directly. Without either, image rows still appear and say what is missing.",
+      "pkg": {
+        "apt": "tesseract-ocr",
+        "dnf": "tesseract",
+        "pacman": "tesseract",
+        "zypper": "tesseract-ocr",
+        "apk": "tesseract-ocr",
+        "brew": "tesseract",
+        "winget": "UB-Mannheim.TesseractOCR",
+        "scoop": "tesseract",
+        "choco": "tesseract"
+      }
+    }
+  ]
+}

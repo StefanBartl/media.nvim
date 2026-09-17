@@ -124,15 +124,22 @@ end
 
 --- Every entry as one aligned line.
 ---
---- Pure, and it takes the details as data rather than fetching them, for two
---- reasons: the alignment is the part worth asserting and it should be
---- assertable without a filesystem, and the async fill redraws by calling this
---- again with a fuller table rather than by patching lines in place.
+--- Pure, and it takes the details and the marks as data rather than fetching
+--- them, for two reasons: the alignment is the part worth asserting and it
+--- should be assertable without a filesystem, and both the async detail fill
+--- and a `<Tab>` redraw by calling this again with a fuller table rather than
+--- by patching lines in place.
+---
+--- The mark occupies the two columns the unmarked row indents by, so marking
+--- shifts nothing — a list that jumps sideways as rows are picked is unusable
+--- for picking rows.
 ---@param entries Media.Hub.Entry[]
 ---@param details table<string, string>|nil  # path → detail column, default `M.detail`
+---@param marked table<string, boolean>|nil  # path → whether it is selected
 ---@return string[]
-function M.rows(entries, details)
+function M.rows(entries, details, marked)
   details = details or {}
+  marked = marked or {}
 
   local kind_w, name_w, detail_w = 0, 0, 0
   local cells = {}
@@ -156,8 +163,9 @@ function M.rows(entries, details)
   local lines = {}
   for i, entry in ipairs(entries) do
     local cell = cells[i]
-    lines[i] = ("  %s  %s  %s  %s")
+    lines[i] = ("%s%s  %s  %s  %s")
       :format(
+        marked[entry.path] and "● " or "  ",
         pad(cell.kind, kind_w),
         pad(cell.name, name_w),
         pad(cell.detail, detail_w),
@@ -264,21 +272,243 @@ local function say(message, level)
 end
 
 ---@internal
---- Bind the reader's keys to the row under the cursor.
+--- The progress indicator for one batch.
 ---
---- Deliberately few. Acting on a row — running the OCR, the extraction, the
---- transcription, over one file or a marked batch — is the hub's next stage;
---- what these four do is get you to the file or to the text that already
---- exists, which is the half a list is useless without.
+--- The `current`/`total` ratio is honest here in a way it is not inside a
+--- single transcription: *files done of files asked* has a real denominator,
+--- where "38% through this audio" would be a guess. The same reasoning that
+--- kept a percentage off the single-run indicator is what puts one on this.
+---
+--- `nil` without lib.nvim, as everywhere else here; the batch runs regardless.
+---
+--- `finish` answers **whether the indicator was ever on screen**, which the
+--- caller needs and cannot otherwise know. `lib.nvim.progress` suppresses
+--- itself until `delay_ms` has elapsed so a fast operation never flashes — and
+--- a batch that finished sooner therefore reported *nothing at all*, with the
+--- dashboard already closed behind it. Found live: three sidecars written, not
+--- a word said. The delay is passed explicitly here rather than left to the
+--- default precisely so this can be a comparison instead of a guess.
+---@return { step: fun(i: integer, total: integer, entry: Media.Hub.Entry): nil, finish: fun(text: string): boolean, on_cancel: fun(fn: fun(): nil): nil }|nil
+local function batch_progress()
+  local ok, progress = pcall(require, "lib.nvim.progress")
+  if not ok then return nil end
+
+  local delay_ms = 150
+  local handle = progress.create({
+    title = "[media]",
+    style = require("media.config").get().progress_style or "auto",
+    delay_ms = delay_ms,
+  })
+
+  local uv = vim.uv or vim.loop
+  local started = uv.now()
+
+  return {
+    step = function(i, total, entry)
+      handle:update({ text = entry.name, current = i, total = total })
+    end,
+    finish = function(text)
+      handle:finish(text)
+      return (uv.now() - started) >= delay_ms
+    end,
+    on_cancel = function(fn)
+      handle:on_cancel(fn)
+    end,
+  }
+end
+
+---@internal
+--- Run `action` over `entries` and report what happened.
+---@param entries Media.Hub.Entry[]
+---@param action Media.Hub.Action
+---@return nil
+local function run_batch(entries, action)
+  local progress = batch_progress()
+  if not progress then say(("%s over %d file(s)…"):format(action.label, #entries)) end
+
+  local job = require("media.hub.actions").run_batch(entries, action, function(i, total, entry)
+    if progress then progress.step(i, total, entry) end
+  end, function(done, failures, cancelled)
+    local summary = ("%s: %d of %d"):format(action.label, done, #entries)
+    if cancelled then summary = summary .. " (cancelled)" end
+    if #failures > 0 then summary = ("%s, %d failed"):format(summary, #failures) end
+
+    -- Said exactly once, through whichever channel the reader actually saw.
+    -- `finish` reports whether the indicator was ever drawn; a batch fast
+    -- enough to beat its own delay showed nothing, and the dashboard has
+    -- already closed, so the notify is the only thing left.
+    local shown = progress and progress.finish(summary) or false
+
+    -- Failures are listed rather than counted, and always: "3 failed" over a
+    -- batch of forty is not something a reader can act on, and the indicator
+    -- is gone a moment later while `:messages` is not.
+    if #failures > 0 then
+      local lines = { summary }
+      for _, failure in ipairs(failures) do
+        lines[#lines + 1] = ("  %s — %s"):format(failure.name, failure.err)
+      end
+      say(table.concat(lines, "\n"), vim.log.levels.WARN)
+    elseif not shown then
+      say(summary)
+    end
+  end)
+
+  if progress then progress.on_cancel(job.cancel) end
+end
+
+--- Act on a chosen action: run it over `entries`, or say why it cannot.
+---
+--- Public and shared, because both paths into it — `vim.ui.select` from the
+--- keyboard and `media.integrations.menu` from the mouse — must do the same
+--- thing with the same pick. Two copies of "what happens when the tool is
+--- missing" is how a menu and a keymap come to disagree.
+---@param entries Media.Hub.Entry[]
+---@param action Media.Hub.Action
+---@param tool Media.Hub.Tool
+---@return nil
+function M.pick(entries, action, tool)
+  if #entries == 0 then return end
+
+  if not tool.ok then
+    say(
+      tool.fix and ("%s — %s"):format(tool.reason, tool.fix) or (tool.reason or "cannot run"),
+      vim.log.levels.WARN
+    )
+    return
+  end
+
+  if action.needs_text then
+    -- Closed first: the alternative is a list whose status column goes stale
+    -- under the reader as the batch writes sidecars behind it, which is the
+    -- exact failure this plugin has a column for.
+    pcall(vim.cmd, "close")
+    run_batch(entries, action)
+    return
+  end
+
+  M.navigate(entries[1], action.id)
+end
+
+--- Perform one of the navigation actions on `entry`.
+---
+--- Public because the context menu reaches the same three, and two copies of
+--- "what does `open_text` mean" is how a menu and a keymap drift apart — the
+--- defect `media.bindings.usrcmds`' own header warns about.
+---@param entry Media.Hub.Entry
+---@param id string
+---@return nil
+function M.navigate(entry, id)
+  if id == "describe" then
+    require("media.ui").show_probe(entry.path)
+    return
+  end
+
+  if id == "open_source" then
+    pcall(vim.cmd, "close")
+    vim.cmd.edit(vim.fn.fnameescape(entry.path))
+    return
+  end
+
+  if id ~= "open_text" then return end
+
+  if entry.status == "missing" then
+    say(
+      ("no %s yet — press <CR> or pick an action to make one"):format(
+        require("media.hub.kinds").verb(entry.kind) or "text"
+      )
+    )
+    return
+  end
+  if not entry.sidecar then
+    say("nothing here turns this kind of file into text")
+    return
+  end
+  -- A stale sidecar opens anyway, with the warning: it is still the text that
+  -- is there, and the reader asked to see it. Refusing would hide the very
+  -- thing the column exists to point at.
+  if entry.status == "stale" then
+    say("this text is older than the file it describes", vim.log.levels.WARN)
+  end
+  pcall(vim.cmd, "close")
+  vim.cmd.edit(vim.fn.fnameescape(entry.sidecar))
+end
+
+---@internal
+--- Offer the actions for these rows and run the chosen one.
+---
+--- Through `vim.ui.select` rather than the context menu: this is the keyboard
+--- path, and `vim.ui.select` is whatever the reader already configured for
+--- exactly that. `media.integrations.menu` draws the same list for the mouse.
+---
+--- An action whose tool is missing is still **listed**, with the reason —
+--- picking it explains rather than runs. Hiding it would answer "what can I do
+--- right now" when the question a dashboard is asked is "what is possible
+--- here", and nobody ever learned a feature existed from a menu that did not
+--- mention it.
+---@param entries Media.Hub.Entry[]  # one row, or the marked set
+---@param kind Media.Hub.Kind
+---@return nil
+local function choose_action(entries, kind)
+  local actions = require("media.hub.actions")
+
+  ---@type { action: Media.Hub.Action, tool: Media.Hub.Tool }[]
+  local offered = {}
+  for _, action in ipairs(actions.list(kind)) do
+    -- Over a marked set, only the ones a batch means anything for: "open the
+    -- source file" over twelve rows is twelve windows, not a batch.
+    if #entries == 1 or actions.batchable(action) then
+      offered[#offered + 1] = { action = action, tool = actions.availability(action, kind) }
+    end
+  end
+
+  if #offered == 0 then
+    say("nothing here can be done to this kind of file")
+    return
+  end
+
+  vim.ui.select(offered, {
+    prompt = #entries == 1 and "media" or ("media — %d marked"):format(#entries),
+    ---@param item { action: Media.Hub.Action, tool: Media.Hub.Tool }
+    ---@return string
+    format_item = function(item)
+      if item.tool.ok then return item.action.label end
+      return ("%s  (%s)"):format(item.action.label, item.tool.reason or "unavailable")
+    end,
+  }, function(item)
+    if item then M.pick(entries, item.action, item.tool) end
+  end)
+end
+
+---@internal
+--- Bind the reader's keys.
+---
+--- `<CR>` is the obvious thing and never wasted work: a row whose text is
+--- missing or stale gets made, a row whose text is current gets opened. A
+--- `<CR>` that re-transcribed a file with a current transcript would spend
+--- minutes producing what was already on disk; one that only ever opened would
+--- make this a list you cannot act on.
 ---@param bufnr integer
 ---@param winid integer
----@param state { entries: Media.Hub.Entry[], scope: string|nil, arg: string|nil }
+---@param state { entries: Media.Hub.Entry[], details: table<string, string>, marked: table<string, boolean>, scope: string|nil, arg: string|nil }
 ---@return nil
 local function bind(bufnr, winid, state)
   ---@return Media.Hub.Entry|nil
   local function current()
     if not vim.api.nvim_win_is_valid(winid) then return nil end
     return state.entries[vim.api.nvim_win_get_cursor(winid)[1]]
+  end
+
+  --- The rows an action applies to: the marked set, or the one under the
+  --- cursor when nothing is marked.
+  ---@return Media.Hub.Entry[]
+  local function targets()
+    local out = {}
+    for _, entry in ipairs(state.entries) do
+      if state.marked[entry.path] then out[#out + 1] = entry end
+    end
+    if #out > 0 then return out end
+    local entry = current()
+    return entry and { entry } or {}
   end
 
   ---@param lhs string
@@ -291,43 +521,79 @@ local function bind(bufnr, winid, state)
     end, { buffer = bufnr, nowait = true, silent = true, desc = desc })
   end
 
-  on("<CR>", "media: open this file's text", function(entry)
-    if entry.status == "missing" then
-      say(
-        ("no %s yet — `:Media text %s` makes one"):format(
-          require("media.hub.kinds").verb(entry.kind) or "text",
-          vim.fn.fnamemodify(entry.path, ":~:.")
-        )
-      )
+  on("<Tab>", "media: mark this row", function(entry)
+    state.marked[entry.path] = (not state.marked[entry.path]) or nil
+    redraw(bufnr, winid, M.rows(state.entries, state.details, state.marked))
+    -- Down one row afterwards, so marking a run of files is <Tab><Tab><Tab>
+    -- rather than <Tab>j<Tab>j<Tab>.
+    if vim.api.nvim_win_is_valid(winid) then
+      local row = vim.api.nvim_win_get_cursor(winid)[1]
+      if row < #state.entries then pcall(vim.api.nvim_win_set_cursor, winid, { row + 1, 0 }) end
+    end
+  end)
+
+  on("<CR>", "media: do the obvious thing", function(entry)
+    local chosen = targets()
+    if #chosen == 0 then return end
+
+    -- A marked set has no single obvious action — the rows may be four kinds
+    -- with four different verbs — so it asks. One row does not.
+    if #chosen > 1 then
+      choose_action(chosen, chosen[1].kind)
       return
     end
-    if not entry.sidecar then
+
+    local actions = require("media.hub.actions")
+    local action = actions.default_for(entry)
+    if not action then
       say("nothing here turns this kind of file into text")
       return
     end
-    -- A stale sidecar opens anyway, with the warning: it is still the text
-    -- that is there, and the reader asked to see it. Refusing would hide the
-    -- very thing the column exists to point at.
-    if entry.status == "stale" then
-      say("this text is older than the file it describes", vim.log.levels.WARN)
+
+    if not action.needs_text then
+      M.navigate(entry, action.id)
+      return
     end
-    vim.cmd("close")
-    vim.cmd.edit(vim.fn.fnameescape(entry.sidecar))
+
+    local tool = actions.availability(action, entry.kind)
+    if not tool.ok then
+      say(
+        tool.fix and ("%s — %s"):format(tool.reason, tool.fix) or (tool.reason or "cannot run"),
+        vim.log.levels.WARN
+      )
+      return
+    end
+
+    pcall(vim.cmd, "close")
+    run_batch(chosen, action)
+  end)
+
+  on("a", "media: choose an action", function()
+    local chosen = targets()
+    if #chosen > 0 then choose_action(chosen, chosen[1].kind) end
+  end)
+
+  on("o", "media: open the existing text", function(entry)
+    M.navigate(entry, "open_text")
   end)
 
   on("gf", "media: open the source file", function(entry)
-    vim.cmd("close")
-    vim.cmd.edit(vim.fn.fnameescape(entry.path))
+    M.navigate(entry, "open_source")
   end)
 
   on("p", "media: describe this file", function(entry)
-    require("media.ui").show_probe(entry.path)
+    M.navigate(entry, "describe")
   end)
 
   vim.keymap.set("n", "r", function()
     vim.cmd("close")
     M.open(state.scope, state.arg)
   end, { buffer = bufnr, nowait = true, silent = true, desc = "media: rescan" })
+
+  -- The mouse reaches the same actions through the same list; see
+  -- `media.integrations.menu` for why that is one list and not two.
+  local ok_menu, menu = pcall(require, "media.integrations.menu")
+  if ok_menu then menu.bind(bufnr, winid, state) end
 end
 
 --- Open the dashboard over `scope`.
@@ -385,7 +651,13 @@ function M.open(scope, arg)
   })
   if not (winid and bufnr) then return end
 
-  bind(bufnr, winid, { entries = entries, scope = scope, arg = arg })
+  bind(bufnr, winid, {
+    entries = entries,
+    details = details,
+    marked = {},
+    scope = scope,
+    arg = arg,
+  })
   fill_details(entries, details, bufnr, winid)
 end
 

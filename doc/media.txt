@@ -102,8 +102,23 @@ before you press one.
                         language.nvim use: cwd (default), cfile, path=<dir>.
                         `.git` and `node_modules` are never descended into.
 
-                        Keys: <CR> open this file's text, gf open the source,
-                        p describe it, r rescan, q close.
+                        Keys: <CR> the obvious thing (make the text when it
+                        is missing or stale, open it when it is current),
+                        <Tab> mark a row and step down, a choose an action,
+                        o open the existing text, gf open the source,
+                        p describe it, r rescan, q close. The right mouse
+                        button offers the same actions as `a`.
+
+                        With rows marked, <CR> and a act on the marked set.
+                        A batch runs sequentially -- twelve ffmpegs at once
+                        is slower, not faster -- under ONE progress handle
+                        showing a real ratio (4/12). A failure does not stop
+                        it; whatever failed is listed by name at the end.
+                        progress_style = "float" gives the batch a cancel
+                        key.
+
+                        An action whose tool is missing is still listed, with
+                        the reason; picking it explains rather than runs.
 
                         The scan starts no processes. The detail column is
                         filled in afterwards, by a bounded number of probes,
