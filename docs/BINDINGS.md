@@ -41,6 +41,7 @@ subcommand and every path argument completes with `<Tab>`.
 | `:Media sheet [path] [rows=…] [cols=…] [width=…]` | render and show a contact sheet |
 | `:Media waveform [path] [width=…] [height=…]` | render and show a waveform picture |
 | `:Media spectrogram [path] [width=…] [height=…]` | render and show a spectrogram |
+| `:Media dashboard [cfile\|cwd] [path=<dir>]` | one list across image/pdf/audio/video, and whether their text is missing, stale or fine |
 | `:Media text [path] [out=]` | anything to text — image → OCR, PDF → extract, audio/video → transcribe |
 | `:Media transcribe [path] [engine=] [lang=] [task=] [out=]` | speech to text — a buffer, a `.transcript.md` sidecar, or `.srt`/`.vtt` subtitles |
 | `:Media engines` | list registered transcription engines and their availability |
