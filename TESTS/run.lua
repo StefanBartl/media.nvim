@@ -41,6 +41,7 @@ local specs = {
   "hub_scan_spec.lua",
   "hub_text_spec.lua",
   "hub_dashboard_spec.lua",
+  "hub_actions_spec.lua",
   "segments_spec.lua",
   "srt_spec.lua",
   "vtt_spec.lua",

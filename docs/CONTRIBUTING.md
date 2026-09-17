@@ -40,7 +40,10 @@ lua/media/
     kinds.lua           -- image | pdf | audio | video | other, and the sidecar each would write
     scan.lua            -- cfile/cwd/path=<dir>, the walk, and missing | stale | ok | none
     text.lua            -- `:Media text` -- one verb, four kinds, every route a pcall
-    dashboard.lua       -- the row format, and the float it goes in
+    dashboard.lua       -- the row format, the float, the keys and the batch
+    actions.lua         -- what you can do to a row, and doing it to several at once
+  integrations/
+    menu.lua            -- the same actions on the right mouse button
   bindings/
     init.lua            -- one entry point, idempotent
     keymaps.lua         -- the four keys

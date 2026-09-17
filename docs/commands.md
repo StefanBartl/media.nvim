@@ -133,20 +133,66 @@ and `hub.max_entries` bounds a scan that turns out to cover a home directory.
 
 | Key | Does |
 | --- | --- |
-| `<CR>` | open this file's text — the sidecar, when there is one |
+| `<CR>` | the obvious thing (see below) |
+| `<Tab>` | mark this row, and step down |
+| `a` | choose an action for this row, or for the marked set |
+| `o` | open the existing text |
 | `gf` | open the source file |
 | `p` | describe it, as `:Media probe` does |
 | `r` | rescan |
 | `q` / `<Esc>` | close |
+| right mouse | the same actions `a` offers |
+
+**`<CR>` is the obvious thing, and never wasted work.** A row whose text is
+missing or stale gets made; a row whose text is current gets opened. That
+asymmetry is the point — a `<CR>` that re-transcribed a file with a current
+transcript would spend minutes producing what was already on disk, and one that
+only ever opened would make this a list you cannot act on.
 
 A **stale** sidecar opens anyway, with a warning: it is still the text that is
 there, and refusing would hide the thing the column exists to point at.
 
-### What it does not do yet
+### Acting on several rows at once
 
-Running an action over a row — or over several marked ones — is the hub's next
-stage. These keys get you to the file or to the text that already exists;
-`:Media text` is what makes text that does not.
+`<Tab>` marks a row and steps down, so marking a run of files is
+`<Tab><Tab><Tab>`. With rows marked, `<CR>` and `a` act on the marked set
+instead of the row under the cursor, and only the actions a *batch* means
+anything for are offered — "open the source file" over twelve rows is twelve
+windows, not a batch.
+
+The batch runs **sequentially**, with **one** progress handle over the whole
+run: each of these is a whole external process, and twelve at once would put
+twelve of them on the machine competing for the same cores. The indicator shows
+a real ratio (`4/12`), which it can here and cannot inside a single
+transcription — *files done of files asked* has a denominator, where "38%
+through this audio" would be a guess.
+
+A failure does not stop the batch: a file that cannot be read is one row's
+problem, and eleven transcripts are worth more than an error message. Whatever
+failed is listed by name at the end. `progress_style = "float"` gives the batch
+a cancel key, which stops it after the file currently in flight.
+
+### Actions
+
+| Kind | Actions |
+| --- | --- |
+| image | OCR → sidecar / buffer |
+| pdf | Extract text → sidecar / buffer |
+| audio, video | Transcribe → sidecar / buffer / `.srt` / `.vtt`, and transcribe + translate to English |
+| any | Open the existing text · open the source file · describe it |
+
+**An action whose tool is missing is still listed**, with the reason beside it;
+picking it explains rather than runs. Hiding it would answer "what can I do
+right now" when the question a dashboard is asked is "what is possible here" —
+and nobody ever learned a feature existed from a menu that did not mention it.
+
+### Not offered here, on purpose
+
+The roadmap's action table also lists *page → PNG* for a PDF and *extract
+audio* for a video. Both are real, and both are somebody else's verb —
+`pdfport.render_page` and an ffmpeg call that writes a file rather than a cache
+entry. Neither has a home in this plugin's public surface yet, and inventing
+one from the dashboard would put the feature in the wrong place.
 
 ### The detail column fills in after the list appears
 

@@ -97,6 +97,16 @@ function M.check()
   local ffprobe = check_bin("ffprobe")
   if ffmpeg and ffprobe then check_version() end
 
+  -- `pointer_for`, not `report_for`: the checks above already cover every tool
+  -- `docs/install.json` declares, in richer wording than the generic report
+  -- would use, and running both prints each tool twice. This adds the one line
+  -- that makes the file discoverable — `:Lib deps show media.nvim` — without
+  -- the duplication. It is also what keeps the declaration from being a file
+  -- nothing ever reads.
+  pcall(function()
+    require("lib.nvim.deps.health").pointer_for("media.nvim")
+  end)
+
   h_start("media.nvim: cache")
   check_cache()
 
