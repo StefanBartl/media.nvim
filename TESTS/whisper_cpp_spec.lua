@@ -64,4 +64,60 @@ return function(H)
   local sparse = engine.from_json({ transcription = { { text = "just this" } } }, nil)
   H.eq(sparse.segments[1].s, 0, "a missing offset falls back to zero rather than throwing")
   H.eq(sparse.model, nil, "no model recorded when none was given")
+
+  -- ── the real document, observed 2026-09-17 ───────────────────────────
+  -- The fixture above was transcribed from whisper.cpp's source and had never
+  -- been checked against a run. This is the actual `-oj` output of a real
+  -- build on `samples/jfk.wav` — kept so a future whisper.cpp that changes the
+  -- shape fails here rather than in a scratch window that comes up empty.
+  local observed = engine.from_json({
+    systeminfo = "WHISPER : VITISAI = 0 | COREML = 0 | …",
+    model = { type = "base", multilingual = false },
+    params = { model = "C:\\tools\\whisper.cpp\\ggml-base.en.bin", language = "en" },
+    result = { language = "en" },
+    transcription = {
+      {
+        timestamps = { from = "00:00:00,000", to = "00:00:11,000" },
+        offsets = { from = 0, to = 11000 },
+        text = " And so my fellow Americans, ask not what your country can do for you.",
+      },
+    },
+  }, "/models/ggml-base.en.bin")
+  H.eq(#observed.segments, 1, "the observed document parses")
+  H.eq(observed.segments[1].s, 0, "")
+  H.eq(observed.segments[1].e, 11, "offsets really are milliseconds — 11000 is eleven seconds")
+  H.eq(observed.lang, "en", "")
+  H.match(observed.text, "^And so my fellow Americans", "")
+  H.eq(
+    observed.duration,
+    nil,
+    "no duration: whisper.cpp's JSON carries none, and the last segment's end is the transcribed extent rather than the file's"
+  )
+
+  -- ── the reason out of stderr ─────────────────────────────────────────
+  -- `whisper-cli` exits 0 on some failures (measured: a file it cannot decode
+  -- gives code 0 and no JSON), so the reason comes from stderr or not at all.
+  -- These are the real lines from that run.
+  H.eq(
+    engine.failure_reason(
+      "read_audio_data: reading audio data from 'x.wav' ...\n"
+        .. "read_audio_data: trying to decode with miniaudio\n"
+        .. "read_audio_data: failed to read audio data\n"
+        .. "error: failed to read audio file 'x.wav'\n"
+    ),
+    "failed to read audio file 'x.wav'",
+    "the `error:` line is picked out from among the progress lines `-np` leaves behind"
+  )
+  H.eq(
+    engine.failure_reason("error: failed to initialize whisper context"),
+    "failed to initialize whisper context",
+    "and the one a missing model produces"
+  )
+  H.eq(
+    engine.failure_reason("read_audio_data: reading audio data from 'x.wav' ...\n"),
+    nil,
+    "progress lines alone are not a failure"
+  )
+  H.eq(engine.failure_reason(nil), nil, "")
+  H.eq(engine.failure_reason(""), nil, "")
 end

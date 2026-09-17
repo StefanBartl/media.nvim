@@ -306,7 +306,24 @@ function M.transcribe(path, opts, callback)
       local engine_job = engine.transcribe(
         wav,
         { lang = lang, task = task },
-        function(transcript, terr)
+        -- **Scheduled onto the main loop, and this is not belt-and-braces.**
+        -- An engine shells out, so its callback arrives from `vim.system`'s
+        -- `on_exit` — a *fast event context*, where `vim.fn.*` is forbidden.
+        -- The first line below it computes a cache key through
+        -- `vim.fn.sha256`, and every waiter after that is a consumer callback
+        -- this plugin has promised may touch the Neovim API
+        -- (`media.init`'s own header). Both were violated.
+        --
+        -- It survived the whole of phase 0 because nothing had ever run a
+        -- *real* engine: the fake one the dispatcher was tested against called
+        -- back from an ordinary context, which is exactly the property a fake
+        -- cannot be relied on to reproduce. Found by the first live
+        -- whisper.cpp run, 2026-09-17 — `E5560: Vimscript function "sha256"
+        -- must not be called in a fast event context`.
+        --
+        -- Done here rather than in the engine so it holds for every engine
+        -- that is ever added, not just the one that found it.
+        vim.schedule_wrap(function(transcript, terr)
           if not transcript then
             fan_out(nil, terr)
             return
@@ -326,7 +343,7 @@ function M.transcribe(path, opts, callback)
             end
           end
           fan_out(transcript, nil)
-        end
+        end)
       )
       -- The active phase now owns cancellation; normalize's own handle is
       -- no longer the one that matters.
