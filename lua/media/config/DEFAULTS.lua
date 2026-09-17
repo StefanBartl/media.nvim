@@ -225,6 +225,20 @@ return {
     dir = nil,
   },
 
+  --- How `:Media transcribe` shows that it is working: `lib.nvim.progress`'s
+  --- own style names, passed straight through. `"auto"` picks whatever is
+  --- installed.
+  ---
+  --- **`"float"` is the one with a cancel key.** Focus it and press `<Esc>` in
+  --- normal mode and the run stops — the whole pipeline, ffmpeg included, not
+  --- just the callback. The other styles report and nothing more, which for a
+  --- process that can run for minutes is worth knowing before choosing one.
+  ---
+  --- Without lib.nvim installed the command simply says "transcribing…" once,
+  --- as it always did; nothing fails over a missing indicator.
+  ---@type Media.Config.ProgressStyle
+  progress_style = "auto",
+
   --- What `media.play` launches. `nil` hands the file to the system's default
   --- handler, which is the right default because it is the choice the user
   --- already made once, in their desktop environment. A string or argv list

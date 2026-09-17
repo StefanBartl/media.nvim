@@ -154,14 +154,20 @@ end
 
 --- Turn `path`'s speech into text: probe it, extract a 16 kHz mono WAV, run
 --- it through the resolved transcription engine, and deliver the result as
---- `opts.output` says (default `transcribe.output`) — a scratch buffer, or
---- a `<file>.transcript.md` sidecar next to the source. Cached across
---- sessions like every other rendering here.
+--- `opts.output` says (default `transcribe.output`) — a scratch buffer, a
+--- `<file>.transcript.md` sidecar, or `.srt`/`.vtt` subtitles next to the
+--- source. Cached across sessions like every other rendering here.
 ---
---- **Phase 0**: one engine (`whisper_cpp`), no SRT/VTT export yet, no
---- fallback chain configured by default. See ROADMAP.md's "Transcription"
---- section for what is still open, and `media.engines.whisper_cpp`'s module
---- header for what has and has not been verified against a real run.
+--- `opts.on_phase` is called as each of the two long steps begins (extracting
+--- the WAV, then the engine's own run). It carries data, not an indicator —
+--- what draws it is the caller's decision, which is why `hover.nvim` can ask
+--- for a transcript in the background without a float appearing over it.
+--- `:Media transcribe` is what turns it into a `lib.nvim.progress` handle.
+---
+--- One engine (`whisper_cpp`) and no fallback chain configured by default.
+--- See ROADMAP.md's "Transcription" section for what is still open, and
+--- `media.engines.whisper_cpp`'s module header for what has and has not been
+--- verified against a real run.
 ---@param path string
 ---@param opts Media.TranscribeOpts|nil
 ---@param callback fun(transcript: Media.Transcript|nil, err: string|nil): nil

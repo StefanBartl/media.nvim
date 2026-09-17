@@ -63,6 +63,99 @@ local function say(message, level)
 end
 
 ---@internal
+--- `m:ss`, for the elapsed clock on the transcription indicator.
+---@param seconds number
+---@return string
+local function elapsed(seconds)
+  local whole = math.max(0, math.floor(seconds))
+  return ("%d:%02d"):format(math.floor(whole / 60), whole % 60)
+end
+
+---@internal
+--- What to say while a given step of a run is under way.
+---
+--- Present tense and named after the step, because the reader is looking at
+--- this *during* the wait it describes, not afterwards.
+---@type table<Media.Transcribe.Phase, string>
+local PHASE_TEXT = {
+  normalize = "extracting audio",
+  transcribe = "transcribing",
+}
+
+---@internal
+--- The indicator for one transcription run.
+---
+--- **This is the command's job, not the dispatcher's.** `media.core.dispatcher`
+--- reports which step it is on and nothing more, so a headless consumer
+--- (`hover.nvim` asking for a transcript in the background) does not inherit a
+--- float somebody else's `:Media transcribe` wanted. The UI lives here,
+--- where the UI is the whole point.
+---
+--- **No percentage, deliberately.** whisper.cpp reports no progress of its
+--- own, and a figure derived from the audio duration would be calibrated to
+--- whichever machine, model and thread count measured it — a wrong percentage
+--- is worse than none, because it is the one a reader plans around. What is
+--- shown instead is true without qualification: which step, which engine, and
+--- how long it has been running.
+---
+--- Returns `nil` when lib.nvim is not installed. Every call site guards on it;
+--- the transcription itself does not depend on an indicator existing.
+---@return { phase: fun(info: Media.Transcribe.Progress): nil, finish: fun(text: string|nil): nil, on_cancel: fun(fn: fun(): nil): nil }|nil
+local function start_progress()
+  local ok, progress = pcall(require, "lib.nvim.progress")
+  if not ok then return nil end
+
+  local handle = progress.create({
+    title = "[media]",
+    style = require("media.config").get().progress_style or "auto",
+  })
+
+  local uv = vim.uv or vim.loop
+  local started = uv.now()
+  local text = "transcribing"
+
+  ---@return nil
+  local function render()
+    handle:update({ text = ("%s — %s"):format(text, elapsed((uv.now() - started) / 1000)) })
+  end
+
+  -- One second, because that is the resolution of what it displays. A faster
+  -- tick would redraw the same string.
+  local timer = uv.new_timer()
+  if timer then timer:start(1000, 1000, vim.schedule_wrap(render)) end
+
+  ---@return nil
+  local function stop_timer()
+    if not timer then return end
+    timer:stop()
+    if not uv.is_closing(timer) then timer:close() end
+    timer = nil
+  end
+
+  return {
+    phase = function(info)
+      text = PHASE_TEXT[info.phase] or "working"
+      -- The engine's id is worth the width only on the step it is spending
+      -- the minutes on; during WAV extraction it is ffmpeg's work, not its.
+      if info.phase == "transcribe" and info.engine then
+        text = ("%s with %s"):format(text, info.engine)
+      end
+      render()
+    end,
+    finish = function(message)
+      stop_timer()
+      handle:finish(message)
+    end,
+    on_cancel = function(fn)
+      handle:on_cancel(function()
+        stop_timer()
+        fn()
+      end)
+    end,
+  }
+end
+
+---@internal
 ---@param engine Media.Engine|nil
 ---@return boolean
 local function engine_available(engine)
@@ -145,26 +238,65 @@ function M.run(action, path, opts)
     end
 
     -- Transcription is minutes, not seconds (ROADMAP.md's "Risks and known
-    -- traps") — said up front for the same reason `frame`/`sheet` say
-    -- "rendering…" before starting, except here the silence it prevents
-    -- could otherwise read as the command having done nothing for a while.
-    say("transcribing…")
-    require("media").transcribe(path, opts, function(transcript, err)
-      if not transcript then
-        say(err or "transcription failed", vim.log.levels.ERROR)
-        return
+    -- traps"), and a run used to say "transcribing…" once and then go silent
+    -- for all of them. `progress` is the live indicator; the notify stays as
+    -- the fallback for an install without lib.nvim, so the command is never
+    -- completely mute.
+    local progress = start_progress()
+    if not progress then say("transcribing…") end
+
+    local job = require("media").transcribe(
+      path,
+      vim.tbl_extend("force", opts or {}, {
+        on_phase = progress and progress.phase or nil,
+      }),
+      function(transcript, err)
+        -- A failure goes through **both** channels, unlike the success above:
+        -- the indicator says the run ended badly and the notify carries the
+        -- reason at ERROR level, because a float that closes itself is not an
+        -- acceptable home for the only account of why something failed.
+        if not transcript then
+          if progress then progress.finish("failed") end
+          say(err or "transcription failed", vim.log.levels.ERROR)
+          return
+        end
+        local ok, derr = output.deliver(path, transcript, mode)
+        if not ok then
+          if progress then progress.finish("failed") end
+          say(derr or "could not deliver the transcript", vim.log.levels.ERROR)
+          return
+        end
+        -- Every mode that produces a file says which one, and `written_path`
+        -- is the only thing that knows the mapping — a buffer answers nil and
+        -- is its own confirmation.
+        --
+        -- Said once, through whichever channel exists: the indicator carries
+        -- the completion message when there is one, and the notify is the
+        -- fallback when there is not. `replacer.nvim` reports the same way
+        -- (`h:finish("128 matches in 19 files")`, no second notification) —
+        -- reported twice, the `notify` style prints the same line under two
+        -- different prefixes.
+        local written = output.written_path(path, mode)
+        local done = written and ("wrote " .. written) or "transcribed"
+        if progress then
+          progress.finish(done)
+        elseif written then
+          say(done)
+        end
       end
-      local ok, derr = output.deliver(path, transcript, mode)
-      if not ok then
-        say(derr or "could not deliver the transcript", vim.log.levels.ERROR)
-        return
-      end
-      -- Every mode that produces a file says which one, and `written_path`
-      -- is the only thing that knows the mapping — a buffer answers nil and
-      -- is its own confirmation.
-      local written = output.written_path(path, mode)
-      if written then say(("wrote %s"):format(written)) end
-    end)
+    )
+
+    -- **The run is now abortable, and it was not before.** `transcribe`
+    -- returned a cancellable handle from the day it was written and this
+    -- command dropped it, so an hour of audio started by accident ran to the
+    -- end with no way to stop it. `progress_style = "float"` is the style
+    -- that offers the key (focus it, `<Esc>`); the others report only.
+    if progress then
+      progress.on_cancel(function()
+        job.cancel()
+        say("transcription cancelled")
+      end)
+    end
     return
   end
 

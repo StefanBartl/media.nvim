@@ -154,6 +154,7 @@ Rebind or disable individually through `keymaps` — see
         whisper_cpp = { model = nil },
       },
       cache = { enabled = true, dir = nil },
+      progress_style = "auto",  -- auto|notify|statusline|fidget|float|kit
       player = nil,
       keymaps = {
         preset = true,
@@ -193,6 +194,14 @@ waveform.timeout_ms        Same reasoning as sheet.timeout_ms: a waveform
 transcribe.timeout_ms      0 (no timeout) by default -- an hour of audio is
                            minutes of work, and the 15s interactive
                            timeout_ms above would kill every real run.
+
+progress_style             How :Media transcribe shows that it is working.
+                           lib.nvim.progress's own style names, passed
+                           through. "float" is the one with a cancel key:
+                           focus it and press <Esc> in normal mode and the
+                           whole pipeline stops, ffmpeg included. Without
+                           lib.nvim there is no indicator and the command
+                           says "transcribing..." once, as it always did.
 
 transcribe.whisper_cpp.model
                            Absolute path to a GGML .bin file. Never set or

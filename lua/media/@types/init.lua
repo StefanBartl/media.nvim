@@ -14,6 +14,7 @@
 ---@field waveform Media.Config.Waveform
 ---@field transcribe Media.Config.Transcribe
 ---@field cache Media.Config.Cache
+---@field progress_style Media.Config.ProgressStyle
 ---@field player string|string[]|nil
 ---@field window Media.Config.Window
 ---@field keymaps Media.Config.Keymaps
@@ -64,6 +65,16 @@
 ---@class Media.Config.Transcribe.WhisperCpp
 ---@field model string|nil  # absolute path to a GGML .bin model file
 
+--- `lib.nvim.progress`'s style names, re-declared rather than referenced.
+---
+--- lib.nvim is a *soft* dependency here — the plugin works without it and the
+--- LuaLS workspace does not include it — so `Lib.Progress.Style` is not a name
+--- this project can resolve. `replacer.nvim` writes the same union out in its
+--- own config types for the same reason. The two have to be kept in step by
+--- hand; the cost of not doing so is a style name LuaLS rejects and
+--- `lib.nvim.progress` would have accepted, which is a warning, not a break.
+---@alias Media.Config.ProgressStyle "auto"|"notify"|"statusline"|"fidget"|"float"|"kit"
+
 ---@class Media.Config.Cache
 ---@field enabled boolean
 ---@field dir string|nil
@@ -98,6 +109,7 @@
 ---@field waveform? Media.Opts.Waveform
 ---@field transcribe? Media.Opts.Transcribe
 ---@field cache? Media.Opts.Cache
+---@field progress_style? Media.Config.ProgressStyle
 ---@field player? string|string[]
 ---@field window? Media.Opts.Window
 ---@field keymaps? Media.Opts.Keymaps
@@ -256,6 +268,24 @@
 ---@class Media.Engine.Job
 ---@field cancel fun(): nil
 
+--- The step a transcription run is currently on.
+---
+--- Two, because two of them are long: extracting the WAV reads the whole file
+--- through ffmpeg, and the engine then spends minutes on it. Everything
+--- between (resolving the engine, keying the cache) is arithmetic, and naming
+--- a step that is over before it can be drawn would only make the indicator
+--- flicker.
+---@alias Media.Transcribe.Phase "normalize"|"transcribe"
+
+--- What `opts.on_phase` is handed each time a run moves on.
+---
+--- Deliberately data, not a rendered string: the wording belongs to whatever
+--- is showing it, and `media.core.dispatcher` has no business deciding whether
+--- a reader sees English, a spinner or nothing at all.
+---@class Media.Transcribe.Progress
+---@field phase Media.Transcribe.Phase
+---@field engine string|nil  # the resolved engine's id, once the run has one
+
 --- What `media.transcribe` accepts.
 ---@class Media.TranscribeOpts
 ---@field engine string|nil     # default `transcribe.engine`
@@ -263,6 +293,7 @@
 ---@field task "transcribe"|"translate"|nil  # default `transcribe.task`
 ---@field output Media.Output.Mode|nil       # default `transcribe.output`
 ---@field cache boolean|nil     # default `transcribe.cache`
+---@field on_phase (fun(info: Media.Transcribe.Progress): nil)|nil  # called as each long step begins; see `Media.Transcribe.Phase`
 
 --- What `media.transcribe` hands back: a handle that gives up on the whole
 --- pipeline (WAV extraction, then the engine), not just whichever half is

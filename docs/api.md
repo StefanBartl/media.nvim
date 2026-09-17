@@ -59,6 +59,31 @@ output.written_path(path, "srt")        -- "<path>.srt", or nil for a buffer
 output.deliver(path, transcript, "srt") -- ok, err
 ```
 
+### Reporting which step a run is on
+
+`media.transcribe`'s `opts.on_phase` is called as each of the two long steps
+begins — extracting the WAV, then the engine's own run:
+
+```lua
+media.transcribe(path, {
+  on_phase = function(info)
+    -- info.phase  : "normalize" | "transcribe"
+    -- info.engine : the resolved engine's id, once the run has one
+  end,
+}, function(transcript, err) end)
+```
+
+It carries **data, not an indicator**. What draws it is the caller's decision,
+which is how `hover.nvim` asks for a transcript in the background without a
+float appearing over it; `:Media transcribe` is what turns the same callback
+into a `lib.nvim.progress` handle. A caller that joins a run already under way
+is told the current step immediately, rather than watching an indicator that
+says nothing until the next step happens to begin.
+
+The handle `media.transcribe` returns cancels the **whole** pipeline — WAV
+extraction as well as the engine — and one caller giving up never takes the
+result away from another still waiting on the same run.
+
 ### Serialising without delivering
 
 Both subtitle formats are pure functions on a transcript, so anything that

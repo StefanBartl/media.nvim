@@ -12,6 +12,15 @@
 --- produced it — so an edited file, a different engine or a different
 --- language each get their own entry rather than serving a stale answer.
 ---
+--- **It reports which step it is on, and reports nothing else.** An hour of
+--- audio is minutes of work, so a caller has to be able to say more than
+--- "working" — but the indicator itself is not this module's business. What
+--- crosses the line is `opts.on_phase`, a plain callback carrying a
+--- `Media.Transcribe.Progress`; `media.bindings.usrcmds` is what turns that
+--- into a `lib.nvim.progress` handle, because the *command* is the UI. Putting
+--- the handle here would open a float over `hover.nvim` every time it asked
+--- for a transcript in the background.
+---
 --- **A second call for the same file/engine/language/task joins the first
 --- one in flight**, the same principle `media.core.cache.ensure` applies to
 --- PNG renders — added in review, 2026-09-14, after the previous shape let
@@ -124,9 +133,21 @@ local function nonempty_or(s, fallback)
   return fallback
 end
 
+--- One caller waiting on a run: what to hand the result to, and — optionally
+--- — what to tell about the step the run is currently on.
+---
+--- A table rather than the bare callback this used to be, because progress is
+--- *per caller*. Two callers joining the same run each get their own
+--- indicator, and a `hover.nvim` that asked for a transcript headlessly must
+--- not inherit the float a `:Media transcribe` opened for itself.
+---@class Media.Transcribe.Waiter
+---@field done fun(transcript: Media.Transcript|nil, err: string|nil): nil
+---@field on_phase (fun(info: Media.Transcribe.Progress): nil)|nil
+
 ---@class Media.Transcribe.Job
----@field waiters (fun(transcript: Media.Transcript|nil, err: string|nil): nil)[]
+---@field waiters Media.Transcribe.Waiter[]
 ---@field cancel (fun(): nil)|nil
+---@field phase Media.Transcribe.Progress|nil  # the last step reported, replayed to a late joiner
 
 --- The in-flight run for one (path, engine, lang, task) tuple, so a second
 --- identical request joins it instead of starting a second `whisper-cli`.
@@ -151,10 +172,22 @@ end
 --- one way it comes back out.
 ---@param key string
 ---@param job Media.Transcribe.Job
----@param waiter fun(transcript: Media.Transcript|nil, err: string|nil): nil
+---@param waiter Media.Transcribe.Waiter
 ---@return Media.Transcribe.Handle
 local function join(key, job, waiter)
   job.waiters[#job.waiters + 1] = waiter
+
+  -- A caller that joins a run already under way is told where it is, rather
+  -- than watching an indicator that says nothing until the next step happens
+  -- to begin — which on a long file is minutes of a progress display that
+  -- looks stuck.
+  if job.phase and waiter.on_phase then
+    local phase, on_phase = job.phase, waiter.on_phase
+    vim.schedule(function()
+      on_phase(phase)
+    end)
+  end
+
   return {
     cancel = function()
       for i, w in ipairs(job.waiters) do
@@ -198,13 +231,33 @@ function M.transcribe(path, opts, callback)
 
   local key = inflight_key(path, requested_engine, lang, task)
 
+  ---@type Media.Transcribe.Waiter
+  local waiter = { done = callback, on_phase = opts.on_phase }
+
   local existing = inflight[key]
-  if existing then return join(key, existing, callback) end
+  if existing then return join(key, existing, waiter) end
 
   ---@type Media.Transcribe.Job
-  local job = { waiters = {}, cancel = nil }
+  local job = { waiters = {}, cancel = nil, phase = nil }
   inflight[key] = job
-  local handle = join(key, job, callback)
+  local handle = join(key, job, waiter)
+
+  --- Tell every waiter which step the run has reached.
+  ---
+  --- Remembered on the job as well as announced, so a caller joining later
+  --- learns it too (see `join`). Each `on_phase` is `pcall`ed: it is a
+  --- consumer's UI callback, and a run that has already survived minutes of
+  --- decoding must not be lost to an error in something drawing a spinner.
+  ---@param phase Media.Transcribe.Phase
+  ---@param engine string|nil
+  local function fan_phase(phase, engine)
+    ---@type Media.Transcribe.Progress
+    local info = { phase = phase, engine = engine }
+    job.phase = info
+    for _, w in ipairs(job.waiters) do
+      if w.on_phase then pcall(w.on_phase, info) end
+    end
+  end
 
   ---@param transcript Media.Transcript|nil
   ---@param err string|nil
@@ -214,12 +267,17 @@ function M.transcribe(path, opts, callback)
     -- `media.transcribe` on the same key, which would otherwise see a
     -- half-cleared `job.waiters` list.
     local waiters = job.waiters
-    for _, waiter in ipairs(waiters) do
-      waiter(transcript, err)
+    for _, w in ipairs(waiters) do
+      w.done(transcript, err)
     end
   end
 
   local function run()
+    -- The first of the two long steps. Both are announced as they *start*,
+    -- not as they finish: the point of the report is the wait that follows
+    -- it, and a step named on completion labels the one already over.
+    fan_phase("normalize", nil)
+
     local normalize_handle = require("media.core.normalize").normalize(path, function(wav, nerr)
       if not wav then
         fan_out(nil, nerr)
@@ -231,6 +289,11 @@ function M.transcribe(path, opts, callback)
         fan_out(nil, rerr)
         return
       end
+
+      -- The resolved engine, not the requested one: a fallback chain means
+      -- the two can differ, and the id worth showing is the one actually
+      -- about to spend the next several minutes.
+      fan_phase("transcribe", engine.id)
 
       local engine_job = engine.transcribe(
         wav,
