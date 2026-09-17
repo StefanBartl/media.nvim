@@ -189,6 +189,112 @@ return function(H)
       H.eq(transcribe_opts.task, "translate", "same for task")
     end
 
+    -- ── on_phase reports the two long steps, in order, as each begins ──
+    do
+      config.setup({})
+      local path = "/tmp/__dispatcher_spec_phase.mkv"
+      local pending_cb = nil
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      normalize_stub.normalize = function(_, callback)
+        pending_cb = callback
+        return { cancel = function() end }
+      end
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      resolver_stub.resolve = function()
+        -- Deliberately a different id from the *requested* engine below: the
+        -- phase must name the one actually about to run, which a fallback
+        -- chain makes a different thing from the one asked for.
+        local fake_engine = {
+          id = "resolved-engine",
+          transcribe = function(_, _, callback)
+            callback({ engine = "resolved-engine", segments = {}, text = "ok" }, nil)
+            return { cancel = function() end }
+          end,
+        }
+        return fake_engine, nil
+      end
+
+      local phases = {}
+      dispatcher.transcribe(path, {
+        cache = false,
+        engine = "requested-engine",
+        on_phase = function(info)
+          phases[#phases + 1] = info
+        end,
+      }, function() end)
+
+      H.eq(#phases, 1, "the WAV extraction is announced as it starts, not when it ends")
+      H.eq(phases[1].phase, "normalize", "and it is the first step")
+      H.eq(phases[1].engine, nil, "with no engine yet — extracting the WAV is ffmpeg's work")
+
+      -- A second caller joining mid-run learns where the run already is,
+      -- rather than watching an indicator that says nothing until the next
+      -- step happens to begin.
+      local joined = {}
+      dispatcher.transcribe(path, {
+        cache = false,
+        engine = "requested-engine",
+        on_phase = function(info)
+          joined[#joined + 1] = info
+        end,
+      }, function() end)
+      vim.wait(200, function()
+        return #joined > 0
+      end, 5)
+      H.eq(#joined, 1, "a late joiner is told the current step")
+      H.eq(joined[1].phase, "normalize", "which is the one the run is actually on")
+
+      pending_cb("/tmp/fake.wav", nil)
+      H.eq(#phases, 2, "the engine's own run is announced too")
+      H.eq(phases[2].phase, "transcribe", "")
+      H.eq(
+        phases[2].engine,
+        "resolved-engine",
+        "named by the RESOLVED engine, not the requested one — a fallback chain makes them differ"
+      )
+    end
+
+    -- ── an on_phase that throws must not take the run down with it ──────
+    do
+      config.setup({})
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      normalize_stub.normalize = function(_, callback)
+        callback("/tmp/fake.wav", nil)
+        return { cancel = function() end }
+      end
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      resolver_stub.resolve = function()
+        local fake_engine = {
+          id = "fake",
+          transcribe = function(_, _, callback)
+            callback({ engine = "fake", segments = {}, text = "survived" }, nil)
+            return { cancel = function() end }
+          end,
+        }
+        return fake_engine, nil
+      end
+
+      local got
+      dispatcher.transcribe("/tmp/__dispatcher_spec_phase_throws.mkv", {
+        cache = false,
+        on_phase = function()
+          error("a consumer's spinner blew up")
+        end,
+      }, function(t)
+        got = t
+      end)
+      H.ok(got ~= nil, "the run finished regardless")
+      H.eq(
+        got.text,
+        "survived",
+        "minutes of decoding are not lost to an error in something drawing a spinner"
+      )
+    end
+
     -- ── a cache hit skips normalize/resolve/transcribe entirely ─────────
     do
       config.setup({})

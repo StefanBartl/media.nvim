@@ -103,6 +103,11 @@ function M.check()
   h_start("media.nvim: optional integrations")
   check_optional("lib.nvim", "keymap registry, `:Media` completion, scratch windows")
   check_optional(
+    "lib.nvim.progress",
+    "`:Media transcribe` shows a live indicator with an elapsed clock, and "
+      .. '`progress_style = "float"` gives the run a cancel key'
+  )
+  check_optional(
     "images",
     "rendered stills are shown in the terminal instead of an external viewer"
   )

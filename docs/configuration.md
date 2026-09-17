@@ -140,6 +140,25 @@ Same reasoning as `sheet.timeout_ms` for the ceiling: both filters read every
 sample of the file once rather than seek, so this is not the interactive
 `timeout_ms`.
 
+## `progress_style`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `progress_style` | `"auto"\|"notify"\|"statusline"\|"fidget"\|"float"\|"kit"` | `"auto"` |
+
+How `:Media transcribe` shows that it is working. The names are
+`lib.nvim.progress`'s own and are passed straight through; `"auto"` picks
+whatever is installed.
+
+**`"float"` is the one with a cancel key.** Focus the window and press `<Esc>`
+in normal mode and the run stops — the whole pipeline, ffmpeg included, not
+just the callback. The other styles report and nothing more, which for a
+process that can run for minutes is worth knowing before picking one.
+
+Without lib.nvim installed there is no indicator and the command says
+"transcribing…" once, as it always did. Nothing fails over a missing one, and
+`:checkhealth media` reports which of the two cases you are in.
+
 ## `transcribe`
 
 | Key | Type | Default |

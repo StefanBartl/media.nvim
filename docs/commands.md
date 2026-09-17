@@ -127,6 +127,20 @@ An `out=` this command does not recognise is rejected **before** the run
 starts rather than after it: transcription is minutes, and a typo discovered
 at the end costs the whole wait.
 
+### While it runs
+
+With lib.nvim installed the command shows a live indicator: which step it is
+on, which engine is spending the time, and how long it has been running —
+`transcribing with whisper_cpp — 2:41`. `progress_style` picks how that is
+drawn, and `"float"` is the style that also gives the run a **cancel key**:
+focus the window and press `<Esc>` in normal mode and the whole pipeline
+stops, ffmpeg included.
+
+**No percentage, and that is deliberate.** whisper.cpp reports no progress of
+its own, and a figure derived from the audio duration would be calibrated to
+whichever machine, model and thread count measured it. A wrong percentage is
+worse than none, because it is the one a reader plans around.
+
 Needs `whisper-cli` on PATH (or `bin["whisper-cli"]` configured) and
 `transcribe.whisper_cpp.model` set to a GGML `.bin` file — `:checkhealth
 media` says which, if either, is missing; neither is ever installed or
