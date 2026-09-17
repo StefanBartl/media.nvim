@@ -67,6 +67,42 @@ return function(H)
   H.eq(actions.default_for({ kind = "pdf", status = "missing" }).id, "text_sidecar", "")
   H.eq(actions.default_for({ kind = "other", status = "none" }), nil, "")
 
+  -- ── a marked set may span kinds, and the per-kind table does not ────────
+  -- The defect this closes: taking the first row's kind and offering its table
+  -- put "Transcribe → .srt" in front of a set holding a screenshot, and the
+  -- screenshot then failed at delivery with "out=srt is not available for this
+  -- kind". The menu offered something that could not work, and the reader
+  -- found out only after the run.
+  ---@param list table
+  ---@param id string
+  ---@return boolean
+  local function has(list, id)
+    for _, action in ipairs(list) do
+      if action.id == id then return true end
+    end
+    return false
+  end
+
+  local same_list, same_kind = actions.for_entries({
+    { kind = "video", status = "missing" },
+    { kind = "video", status = "ok" },
+  })
+  H.eq(same_kind, "video", "one kind throughout is answered as that kind")
+  H.eq(#same_list, #actions.list("video"), "and gets its own table, unchanged")
+
+  local mixed_list, mixed_kind = actions.for_entries({
+    { kind = "video", status = "missing" },
+    { kind = "image", status = "missing" },
+  })
+  H.eq(mixed_kind, nil, "a set spanning kinds has no single kind")
+  H.eq(#mixed_list, 2, "and gets the two routes that mean the same thing everywhere")
+  H.ok(has(mixed_list, "text_sidecar"), "to a sidecar")
+  H.ok(has(mixed_list, "text_buffer"), "or to a buffer")
+  H.falsy(has(mixed_list, "srt"), "but never subtitles — a set with an image has no honest .srt")
+
+  local empty_list = actions.for_entries({})
+  H.eq(#empty_list, 0, "no entries is no actions, not an error")
+
   -- ── which actions a batch means anything for ────────────────────────────
   H.eq(actions.batchable({ id = "ocr_sidecar", needs_text = true }), true, "")
   H.eq(
