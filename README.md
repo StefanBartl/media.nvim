@@ -25,7 +25,8 @@
 file's speech, turned into text.** `ffprobe` says how long, how big and in
 which codec; `ffmpeg` produces a poster frame, a contact sheet or a waveform
 as a PNG on disk; a local transcription engine turns the speech in it into a
-buffer or a `.transcript.md` sidecar. Anything that can draw a picture can
+buffer, a `.transcript.md` sidecar, or SRT/VTT subtitles. Anything that can
+draw a picture can
 then show a video — which was, until now, everywhere just a size in bytes and
 the word "binary".
 

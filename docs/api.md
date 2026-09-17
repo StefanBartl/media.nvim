@@ -44,8 +44,33 @@ sometimes synchronous is the harder contract to write against.
 different words for the same file.
 
 `media.transcribe` hands back the `Media.Transcript` and nothing else — it
-does not write a buffer or a sidecar itself, the same division `media.frame`
-draws with `media.ui.show_image`. `:Media transcribe` (and its `out=`
-argument) is the thing that calls `require("media.output").deliver(path,
-transcript, "buffer"|"sidecar")`; a consumer wanting the same delivery calls
-it directly.
+does not write a buffer, a sidecar or a subtitle file itself, the same
+division `media.frame` draws with `media.ui.show_image`. `:Media transcribe`
+(and its `out=` argument) is the thing that calls
+`require("media.output").deliver(path, transcript, mode)`; a consumer wanting
+the same delivery calls it directly.
+
+```lua
+local output = require("media.output")
+
+output.MODES                            -- { "buffer", "sidecar", "srt", "vtt" }
+output.is_mode("srt")                   -- true; check this BEFORE a run, not after
+output.written_path(path, "srt")        -- "<path>.srt", or nil for a buffer
+output.deliver(path, transcript, "srt") -- ok, err
+```
+
+### Serialising without delivering
+
+Both subtitle formats are pure functions on a transcript, so anything that
+wants the document rather than the file takes it straight:
+
+```lua
+local srt = require("media.output.srt").serialize(transcript)  -- SubRip
+local vtt = require("media.output.vtt").serialize(transcript)  -- WebVTT
+```
+
+Nothing there touches disk, ffmpeg or an engine. The shared preparation —
+dropping empty segments, repairing a zero-length one without discarding its
+text, and collapsing a blank line that would otherwise end the cue — is
+`require("media.core.segments").cues(segments)`, and both serialisers read it
+so the two formats cannot disagree about what a transcript says.

@@ -107,7 +107,25 @@ runs it through the resolved engine, and delivers the result.
 | `engine=` | a registered engine id (`whisper_cpp` is the only one in phase 0) | `transcribe.engine` |
 | `lang=` | an ISO 639-1 code (`en`, `de`, …), or omit to let the engine detect it | `transcribe.lang` |
 | `task=` | `transcribe` (keep the source language) or `translate` (whisper.cpp's own English-only translate) | `transcribe.task` |
-| `out=` | `buffer` (a scratch window) or `sidecar` (`<file>.transcript.md`) | `transcribe.output` |
+| `out=` | `buffer`, `sidecar`, `srt` or `vtt` — see the table below | `transcribe.output` |
+
+### Where the transcript goes
+
+| `out=` | Writes | Why you would |
+| --- | --- | --- |
+| `buffer` | nothing — a scratch window | The default: a machine transcript is worth reading before it is worth keeping |
+| `sidecar` | `<file>.transcript.md` | The convention this ecosystem's OCR already established; greppable, and `:Translate` handles it |
+| `srt` | `<file>.srt` | SubRip — what every player reads |
+| `vtt` | `<file>.vtt` | WebVTT — what a browser reads |
+
+Both subtitle suffixes are appended to the *full* file name, so `talk.mp4`
+becomes `talk.mp4.srt`. `talk.mp4` and `talk.mov` in one directory therefore
+cannot overwrite each other's subtitles, and mpv and VLC autoload that form
+regardless.
+
+An `out=` this command does not recognise is rejected **before** the run
+starts rather than after it: transcription is minutes, and a typo discovered
+at the end costs the whole wait.
 
 Needs `whisper-cli` on PATH (or `bin["whisper-cli"]` configured) and
 `transcribe.whisper_cpp.model` set to a GGML `.bin` file — `:checkhealth

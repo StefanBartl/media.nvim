@@ -145,9 +145,9 @@ return {
   },
 
   --- Turning speech into text — the transcription half of this plugin
-  --- (ROADMAP.md's "Transcription" section). Phase 0: one engine
-  --- (`whisper_cpp`), buffer and sidecar output; the fallback chain, more
-  --- engines and SRT/VTT export are later phases.
+  --- (ROADMAP.md's "Transcription" section). One engine (`whisper_cpp`), four
+  --- output modes including SRT and VTT; the fallback chain and more engines
+  --- are later phases.
   transcribe = {
     --- Which registered engine `media.transcribe` tries first.
     ---@type string
@@ -175,7 +175,13 @@ return {
     task = "transcribe",
 
     --- Where a finished transcript goes when the caller does not say.
-    ---@type "buffer"|"sidecar"
+    ---
+    --- `"buffer"` is a scratch window, `"sidecar"` the `.transcript.md` next
+    --- to the source, `"srt"`/`"vtt"` subtitle files beside it
+    --- (`talk.mp4.srt`). The default stays the buffer for the reason
+    --- `media.output`'s own header gives: a machine transcript is worth
+    --- reading before it is worth keeping.
+    ---@type Media.Output.Mode
     output = "buffer",
 
     --- Cross-session cache, keyed like every other entry here by the source

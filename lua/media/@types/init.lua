@@ -55,7 +55,7 @@
 ---@field fallback string[]
 ---@field lang string|nil
 ---@field task "transcribe"|"translate"
----@field output "buffer"|"sidecar"
+---@field output Media.Output.Mode
 ---@field cache boolean
 ---@field timeout_ms integer  # 0 = no timeout
 ---@field normalize_timeout_ms integer
@@ -130,7 +130,7 @@
 ---@field fallback? string[]
 ---@field lang? string
 ---@field task? "transcribe"|"translate"
----@field output? "buffer"|"sidecar"
+---@field output? Media.Output.Mode
 ---@field cache? boolean
 ---@field timeout_ms? integer
 ---@field normalize_timeout_ms? integer
@@ -225,6 +225,12 @@
 ---@field segments Media.Segment[]
 ---@field text string           # `segments` joined; the flat view a buffer or a sidecar shows
 
+--- Where a finished transcript goes. `media.output` owns the list — its
+--- `M.MODES` and this alias are the same four words, and `M.is_mode` is the
+--- runtime check for what a `:Media transcribe out=` argument cannot be
+--- type-checked into.
+---@alias Media.Output.Mode "buffer"|"sidecar"|"srt"|"vtt"
+
 ---@class Media.EngineCapabilities
 ---@field local_ boolean         # runs without a network call
 ---@field remote boolean
@@ -255,7 +261,7 @@
 ---@field engine string|nil     # default `transcribe.engine`
 ---@field lang string|nil       # default `transcribe.lang`
 ---@field task "transcribe"|"translate"|nil  # default `transcribe.task`
----@field output "buffer"|"sidecar"|nil       # default `transcribe.output`
+---@field output Media.Output.Mode|nil       # default `transcribe.output`
 ---@field cache boolean|nil     # default `transcribe.cache`
 
 --- What `media.transcribe` hands back: a handle that gives up on the whole

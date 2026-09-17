@@ -38,6 +38,8 @@ local specs = {
   "normalize_args_spec.lua",
   "whisper_cpp_spec.lua",
   "segments_spec.lua",
+  "srt_spec.lua",
+  "vtt_spec.lua",
   "sidecar_spec.lua",
   "registry_spec.lua",
   "resolver_spec.lua",
