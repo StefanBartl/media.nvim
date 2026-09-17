@@ -212,6 +212,18 @@ audio* for a video. Both are real, and both are somebody else's verb —
 entry. Neither has a home in this plugin's public surface yet, and inventing
 one from the dashboard would put the feature in the wrong place.
 
+### Long paths are cut from the front
+
+A name wider than 56 cells shows as `…/deeper/file.png`. The column is padded
+to the longest name in the list, so without a cap one deeply-nested file
+decides the width of every row — measured over a real tree, a single
+247-character path against an 87-character average made all 2391 rows **283
+cells wide**, and the status column, the whole reason this list exists, sat
+past column 270 and off the side of the window.
+
+The front is what gets cut because the filename is the part that answers
+"which file is this"; the leading directories are the disposable half.
+
 ### The detail column fills in after the list appears
 
 The scan itself starts no processes: five hundred files would be five hundred
