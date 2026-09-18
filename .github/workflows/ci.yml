@@ -33,7 +33,7 @@ jobs:
   # lib.nvim is checked out as a sibling (keymap registry, usercmd composer).
   test:
     name: test (${{ matrix.os }})
-    runs-on: ${{{{ matrix.os }}}}
+    runs-on: ${{ matrix.os }}
     strategy:
       # One platform failing must not cancel the others: which of the three
       # broke is the whole information content of this job.
