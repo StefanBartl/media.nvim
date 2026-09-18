@@ -59,6 +59,7 @@ local specs = {
   "engines_spec.lua",
   "output_spec.lua",
   "dispatcher_spec.lua",
+  "health_spec.lua",
   "smoke_spec.lua",
 }
 
