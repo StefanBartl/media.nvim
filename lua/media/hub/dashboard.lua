@@ -407,7 +407,17 @@ end
 --- dashboard already closed behind it. Found live: three sidecars written, not
 --- a word said. The delay is passed explicitly here rather than left to the
 --- default precisely so this can be a comparison instead of a guess.
----@return { step: fun(i: integer, total: integer, entry: Media.Hub.Entry): nil, finish: fun(text: string): boolean, on_cancel: fun(fn: fun(): nil): nil }|nil
+---
+--- Named instead of an inline `{ step: fun(...): nil, finish: ..., on_cancel:
+--- ... }` return type (LLS-11): each field's `fun` carries an explicit return
+--- type, so an inline table type reads everything after the first one's `nil`
+--- as more of *its* return list -- `finish`/`on_cancel` silently stopped
+--- existing as fields, and both call sites below were an undefined-field.
+---@class Media.Hub.BatchProgressHandle
+---@field step fun(i: integer, total: integer, entry: Media.Hub.Entry)
+---@field finish fun(text: string): boolean
+---@field on_cancel fun(fn: fun())
+---@return Media.Hub.BatchProgressHandle|nil
 local function batch_progress()
   local ok, progress = pcall(require, "lib.nvim.progress")
   if not ok then return nil end

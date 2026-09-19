@@ -125,13 +125,24 @@ local PHASE_TEXT = {
 --- Returns `nil` when lib.nvim is not installed. Every call site guards on it;
 --- the work itself does not depend on an indicator existing.
 ---
+--- Named instead of an inline `{ phase: fun(...): nil, finish: ..., on_cancel:
+--- ... }` return type (LLS-11): each field's `fun` carries an explicit return
+--- type, so an inline table type reads everything after the first one's `nil`
+--- as more of *its* return list -- `finish`/`on_cancel` silently stopped
+--- existing as fields, and every `progress.finish(...)`/`.on_cancel(...)`
+--- call site below was an undefined-field.
+---@class Media.ProgressHandle
+---@field phase fun(info: Media.Transcribe.Progress)
+---@field finish fun(text: string|nil)
+---@field on_cancel fun(fn: fun())
+
 --- `initial` is what it says before the first phase is reported — and for OCR
 --- and PDF extraction it is all it ever says, because those have no phases to
 --- report. They keep the indicator anyway: the 150 ms `lib.nvim.progress`
 --- waits before rendering means a fast one never flashes, and a scan of a
 --- two-hundred-page document is not fast.
 ---@param initial string
----@return { phase: fun(info: Media.Transcribe.Progress): nil, finish: fun(text: string|nil): nil, on_cancel: fun(fn: fun(): nil): nil }|nil
+---@return Media.ProgressHandle|nil
 local function start_progress(initial)
   local ok, progress = pcall(require, "lib.nvim.progress")
   if not ok then return nil end
