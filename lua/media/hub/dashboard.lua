@@ -151,7 +151,7 @@ end
 ---
 --- Pure and public because the truncation is a decision, not a detail: which
 --- end is kept is the difference between a column of
---- `WKDBooks/Aktuelle-Literatur/OS/W_Stallings…` and one of
+--- `Notes/Reference-Library/OS/W_Stallings…` and one of
 --- `…/10_Multiprocessor/fig-3.png`, and only the second answers "which file is
 --- this".
 ---

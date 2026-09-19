@@ -123,7 +123,7 @@ return function(H)
   -- reason this list exists, then sat past column 270 and off the window.
   H.eq(dashboard.shorten("talks/standup.mp4"), "talks/standup.mp4", "a short name is untouched")
 
-  local long = "WKDBooks/Aktuelle-Literatur/OS/W_Stallings_OS_Internals/PART-4/10_Multi/fig-3.png"
+  local long = "Notes/Reference-Library/OS/W_Stallings_OS_Internals/PART-4/10_Multi/fig-3.png"
   local short = dashboard.shorten(long)
   H.ok(vim.fn.strdisplaywidth(short) <= 56, "a long one is cut to the limit")
   H.match(short, "^…", "cut from the FRONT")
@@ -132,7 +132,7 @@ return function(H)
     "fig%-3%.png$",
     "so the filename — the part that answers 'which file' — survives"
   )
-  H.falsy(short:find("WKDBooks", 1, true), "and the leading directories, the disposable part, go")
+  H.falsy(short:find("Notes", 1, true), "and the leading directories, the disposable part, go")
 
   -- Width, not bytes: a byte cut can split a UTF-8 sequence and leave a broken
   -- glyph sitting in the middle of the list.
