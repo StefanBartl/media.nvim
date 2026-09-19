@@ -131,9 +131,19 @@ local running = 0
 --- already serialises this process's own callers onto one render per `out`;
 --- what it cannot see is a second Neovim doing the same thing, and the pid
 --- is what keeps the two from landing on the same name.
+---
+--- The pid goes *before* the extension, not after: ffmpeg (and every muxer
+--- that picks its output format from the filename rather than an explicit
+--- `-f`) needs the real extension last. `out.png.tmp-1234` ends in
+--- `.tmp-1234`, which ffmpeg does not recognise, and it refuses to write —
+--- "Unable to choose an output format" — for every renderer here, silently,
+--- since none of them pass `-f`. Found via a video hover that never opened,
+--- 2026-09-19.
 ---@param out string
 ---@return string
 local function tmp_for(out)
+  local base, ext = out:match("^(.*)%.([^./\\]+)$")
+  if base then return base .. ".tmp-" .. uv.os_getpid() .. "." .. ext end
   return out .. ".tmp-" .. uv.os_getpid()
 end
 
