@@ -1,10 +1,11 @@
 -- media.core.bin: the explicit-config-always-wins rule, the per-name cache
--- and its reset. Uses fabricated binary names throughout so a real (or
--- missing) ffmpeg/mpv install on the machine running this suite cannot change
--- the outcome — the one exception is the `available()` check at the end,
--- which touches the real "ffmpeg"/"ffprobe" cache entries and resets them
--- back to "unlooked-up" afterwards so `smoke_spec`'s own `media.available()`
--- call still does a real, uncached lookup.
+-- keyed on (name, configured value), and its reset. Uses fabricated binary
+-- names throughout so a real (or missing) ffmpeg/mpv install on the machine
+-- running this suite cannot change the outcome — the one exception is the
+-- `available()` check at the end, which touches the real "ffmpeg"/"ffprobe"
+-- cache entries and resets them back to "unlooked-up" afterwards so
+-- `smoke_spec`'s own `media.available()` call still does a real, uncached
+-- lookup.
 ---@diagnostic disable: need-check-nil
 
 ---@param H table
@@ -21,21 +22,30 @@ return function(H)
     "an explicit config path wins over PATH/well-known lookups, existing or not"
   )
 
-  -- ── the answer is cached: a config change alone does not take effect ──
+  -- ── a config change is picked up on the very next find(), no reset() ───
+  -- The cache key is (name, config.get().bin[name]): a different configured
+  -- value is a cache miss on its own, so a stale answer can no longer
+  -- outlive the `setup()` call that changed it.
   config.setup({ bin = { mpv = "E:/__media_bin_spec__/other.exe" } })
   H.eq(
     bin.find("mpv"),
-    "E:/__media_bin_spec__/does-not-exist.exe",
-    "the first lookup is cached; a later config change is not seen until reset"
+    "E:/__media_bin_spec__/other.exe",
+    "a config change invalidates the cache by itself; find() sees it immediately"
   )
 
-  -- ── reset(name) clears exactly that one entry ──────────────────────────
-  bin.reset("mpv")
+  -- ── an unchanged config is still cached: repeating the same setup() does
+  --    not re-derive the answer, it returns the same cached entry ─────────
+  config.setup({ bin = { mpv = "E:/__media_bin_spec__/other.exe" } })
   H.eq(
     bin.find("mpv"),
     "E:/__media_bin_spec__/other.exe",
-    "reset(name) makes the new config visible"
+    "an identical config value is still a cache hit"
   )
+
+  -- ── reset(name) still works, for what a config diff cannot see (PATH or
+  --    an install changing under an unchanged config) ─────────────────────
+  bin.reset("mpv")
+  H.eq(bin.find("mpv"), "E:/__media_bin_spec__/other.exe", "reset(name) re-derives the same answer")
 
   -- ── a name that is neither configured, on PATH, nor in a well-known
   --    install directory resolves to nil, and stays nil on a second ask ──
@@ -48,13 +58,23 @@ return function(H)
     "the negative result is cached too, not re-derived as something else"
   )
 
-  -- ── reset() with no argument clears every cached name ──────────────────
-  bin.reset()
+  -- ── configuring a previously-missing name takes effect immediately,
+  --    no reset() needed — this is the case PERF-46 was about: a user who
+  --    configures `bin.ffmpeg` after an earlier failed lookup must not keep
+  --    getting "not found" for the rest of the session ───────────────────
   config.setup({ bin = { [missing] = "E:/__media_bin_spec__/now-configured.exe" } })
   H.eq(
     bin.find(missing),
     "E:/__media_bin_spec__/now-configured.exe",
-    "a bare reset() clears the whole cache, not just the last-looked-up name"
+    "configuring a name that previously resolved to nil is seen without reset()"
+  )
+
+  -- ── reset() with no argument still clears every cached name ────────────
+  bin.reset()
+  H.eq(
+    bin.find(missing),
+    "E:/__media_bin_spec__/now-configured.exe",
+    "a bare reset() re-derives the same answer for every name"
   )
 
   -- ── available(): true means both binaries resolved to *something*,
