@@ -753,7 +753,7 @@ function M.open(scope, arg)
     return
   end
 
-  local entries = scan.scan(scope, arg)
+  local entries, scan_err = scan.scan(scope, arg)
   if not entries then
     say("could not scan " .. root, vim.log.levels.ERROR)
     return
@@ -761,10 +761,18 @@ function M.open(scope, arg)
 
   if #entries == 0 then
     -- An answer, not an empty window: "nothing here" and "the scan failed"
-    -- look identical in a blank list, and only one of them is true.
-    say(("no images, PDFs, audio or video under %s"):format(vim.fn.fnamemodify(root, ":~")))
+    -- look identical in a blank list, and only one of them is true (ERR-11) --
+    -- `scan_err` is how a directory that could not be read tells the two
+    -- apart from one that was simply empty.
+    if scan_err then
+      say(scan_err, vim.log.levels.WARN)
+    else
+      say(("no images, PDFs, audio or video under %s"):format(vim.fn.fnamemodify(root, ":~")))
+    end
     return
   end
+
+  if scan_err then say(scan_err, vim.log.levels.WARN) end
 
   ---@type table<string, string>
   local details = {}

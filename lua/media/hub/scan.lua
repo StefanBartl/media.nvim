@@ -37,6 +37,31 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 
+---@internal
+--- `~`/env expansion only -- never Vim's filename specials or a shell command
+--- substitution, both of which `vim.fn.expand()` performs on a backtick span
+--- or a `%`/`#`/`<cfile>` argument (SEC-34): `arg` here is the `path=<dir>`
+--- value off a `:Media dashboard` command line. `lib.nvim.cross.fs.expand_path`
+--- when present, a small equivalent when not -- this plugin's soft dependency
+--- on lib.nvim holds everywhere else, and a dashboard that only resolves its
+--- `path=` scope with lib.nvim installed would be a new, undocumented one.
+---@param path string
+---@return string
+local function expand_path(path)
+  local ok, expand = pcall(require, "lib.nvim.cross.fs.expand_path")
+  if ok then return expand(path) end
+  if path:sub(1, 1) == "~" then
+    local home = uv.os_homedir()
+    if home then path = home .. path:sub(2) end
+  end
+  path = path:gsub("%%([%w_]+)%%", function(name)
+    return vim.env[name] or ("%" .. name .. "%")
+  end)
+  return (path:gsub("%$([%w_]+)", function(name)
+    return vim.env[name] or ("$" .. name)
+  end))
+end
+
 --- Directory names never descended into, whatever the configuration says.
 ---
 --- `node_modules` is named in the roadmap itself, and for the obvious reason:
@@ -94,7 +119,7 @@ function M.root(scope, arg)
     if not arg or arg == "" then
       return nil, "the `path` scope needs a directory: :Media dashboard path=<dir>"
     end
-    local expanded = vim.fn.fnamemodify(vim.fn.expand(arg), ":p")
+    local expanded = vim.fn.fnamemodify(expand_path(arg), ":p")
     if vim.fn.isdirectory(expanded) == 0 then return nil, "not a directory: " .. arg end
     return vim.fs.normalize(expanded)
   end
@@ -116,6 +141,7 @@ end
 ---@param exclude string[]|nil  # additional directory names to skip
 ---@param max_entries integer
 ---@return string[] paths
+---@return string[] unreadable  # directories `fs_scandir` could not open -- permission, a dropped mount, a junction `isdirectory` accepts but this refuses. Distinct from a directory that opened and was simply empty (ERR-11).
 function M.walk(root, exclude, max_entries)
   local exclude_set = vim.deepcopy(ALWAYS_EXCLUDE)
   for _, name in ipairs(exclude or {}) do
@@ -124,20 +150,23 @@ function M.walk(root, exclude, max_entries)
 
   local kinds = require("media.hub.kinds")
   local found = {}
+  local unreadable = {}
   local visited = 0
   local stack = { root }
 
   while #stack > 0 do
     local dir = table.remove(stack)
     local handle = uv.fs_scandir(dir)
-    if handle then
+    if not handle then
+      unreadable[#unreadable + 1] = dir
+    else
       while true do
         local name, entry_kind = uv.fs_scandir_next(handle)
         if not name then break end
         visited = visited + 1
         if visited > max_entries then
           table.sort(found)
-          return found
+          return found, unreadable
         end
         local full = dir .. "/" .. name
 
@@ -174,7 +203,7 @@ function M.walk(root, exclude, max_entries)
   end
 
   table.sort(found)
-  return found
+  return found, unreadable
 end
 
 --- The state of `path`'s text: is the sidecar there, and is it still true?
@@ -229,8 +258,10 @@ function M.scan(scope, arg)
   local cfg = require("media.config").get().hub
   local kinds = require("media.hub.kinds")
 
+  local walked, unreadable = M.walk(root, cfg.exclude, cfg.max_entries)
+
   local entries = {}
-  for _, path in ipairs(M.walk(root, cfg.exclude, cfg.max_entries)) do
+  for _, path in ipairs(walked) do
     local kind = kinds.of(path)
     if kind ~= "other" then
       local status, sidecar, age = M.status(path, kind)
@@ -243,6 +274,19 @@ function M.scan(scope, arg)
         age = age,
       }
     end
+  end
+
+  -- "Nothing found" and "could not look" must not collapse into the same
+  -- silent empty list (ERR-11): a permission-denied share or a dropped mount
+  -- yields the same zero `entries` a genuinely empty directory does, and only
+  -- one of the two is the truth "no images, PDFs, audio or video here" tells.
+  if #unreadable > 0 then
+    return entries,
+      ("%d director%s could not be read, including %s"):format(
+        #unreadable,
+        #unreadable == 1 and "y" or "ies",
+        unreadable[1]
+      )
   end
 
   return entries, nil
