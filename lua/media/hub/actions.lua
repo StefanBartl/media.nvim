@@ -216,8 +216,6 @@ function M.run_batch(entries, action, on_step, on_done)
   ---@type { name: string, err: string }[]
   local failures = {}
   local cancelled = false
-  ---@type Media.Transcribe.Handle|nil
-  local current = nil
 
   local function step()
     if cancelled then
@@ -235,8 +233,7 @@ function M.run_batch(entries, action, on_step, on_done)
     on_step(index, total, entry)
 
     local hub = require("media.hub.text")
-    current = hub.run(entry.path, action.opts, function(result, err)
-      current = nil
+    hub.run(entry.path, action.opts, function(result, err)
       if not result then
         failures[#failures + 1] = { name = entry.name, err = err or "failed" }
       else
@@ -257,13 +254,16 @@ function M.run_batch(entries, action, on_step, on_done)
   vim.schedule(step)
 
   return {
+    -- Only the flag: `step()` is only ever re-entered from the in-flight
+    -- item's own callback (`hub.run`'s `done`), so cancelling the dispatcher
+    -- handle here too would suppress that very callback — cancelling a
+    -- transcription drops this batch's waiter from `job.waiters`, and once
+    -- nobody is left waiting the run's result never fans out (PRIN-20: the
+    -- `on_done` this batch owes its caller would then never fire). Letting
+    -- the current item finish and stopping *after* it, as the docstring
+    -- above already promises, needs no call into the item at all.
     cancel = function()
-      if cancelled then return end
       cancelled = true
-      -- Stop the run in flight too, where there is one to stop. OCR and PDF
-      -- extraction hand back nothing, so those finish and the batch ends
-      -- after them.
-      if current then pcall(current.cancel) end
     end,
   }
 end
