@@ -116,7 +116,12 @@ local function read_cached(cache_path, callback)
       return
     end
     local ok, doc = pcall(vim.json.decode, content)
-    callback((ok and type(doc) == "table") and doc or nil)
+    -- A snapshot survives across sessions and plugin versions, so its shape
+    -- is never assumed (SEC-33): `segments` missing or the wrong type would
+    -- otherwise reach `media.core.segments.to_text`'s `ipairs` as a raw
+    -- `bad argument` error out of a user command instead of a clean re-run.
+    local valid = ok and type(doc) == "table" and type(doc.segments) == "table"
+    callback(valid and doc or nil)
   end)
 end
 
@@ -271,10 +276,16 @@ function M.transcribe(path, opts, callback)
   ---@param err string|nil
   local function fan_out(transcript, err)
     inflight[key] = nil
-    -- Snapshot first: a waiter's own callback may itself start a new
-    -- `media.transcribe` on the same key, which would otherwise see a
-    -- half-cleared `job.waiters` list.
-    local waiters = job.waiters
+    -- Snapshot first, for the reason `fan_phase` above does: a waiter's own
+    -- `done` can itself start a new `media.transcribe` on the same key, or
+    -- cancel another handle on this one — `join`'s cancel does a
+    -- `table.remove` on `job.waiters`, and mutating the list while this
+    -- iterates it would skip the next waiter silently (PRIN-20). Aliasing it
+    -- (`local waiters = job.waiters`) is not a snapshot; only a copy is.
+    local waiters = {}
+    for i, w in ipairs(job.waiters) do
+      waiters[i] = w
+    end
     for _, w in ipairs(waiters) do
       w.done(transcript, err)
     end

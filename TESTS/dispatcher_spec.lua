@@ -310,6 +310,113 @@ return function(H)
       )
     end
 
+    -- ── a waiter's own callback cancelling another waiter mid fan-out must
+    --    not skip that other waiter (PRIN-20): `fan_out` used to alias
+    --    `job.waiters` instead of copying it, so a `table.remove` triggered
+    --    from inside the loop (`join`'s cancel, called from a sibling's own
+    --    `done`) shifted the list underneath `ipairs` and dropped whoever
+    --    came after ────────────────────────────────────────────────────
+    do
+      config.setup({})
+      local path = "/tmp/__dispatcher_spec_fanout_mutate.mkv"
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      normalize_stub.normalize = function(_, callback)
+        callback("/tmp/fake.wav", nil)
+        return { cancel = function() end }
+      end
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      resolver_stub.resolve = function()
+        local fake_engine = {
+          id = "fake",
+          transcribe = function(_, _, callback)
+            callback({ engine = "fake", segments = {}, text = "fanned out" }, nil)
+            return { cancel = function() end }
+          end,
+        }
+        return fake_engine, nil
+      end
+
+      local handle2
+      local first_got, second_got = false, false
+      dispatcher.transcribe(path, { cache = false }, function()
+        first_got = true
+        -- Cancelling a sibling from inside a waiter's own `done` -- exactly
+        -- the case the module header's `fan_phase` comment describes, one
+        -- function over.
+        handle2.cancel()
+      end)
+      handle2 = dispatcher.transcribe(path, { cache = false }, function()
+        second_got = true
+      end)
+
+      vim.wait(2000, function()
+        return first_got
+      end, 5)
+
+      H.ok(first_got, "the first waiter's callback ran")
+      H.ok(second_got, "and so did the second's -- not silently dropped by a shifted list")
+    end
+
+    -- ── a cache file that decodes but is the wrong shape is a miss, not a
+    --    crash (SEC-33): a persisted snapshot survives across sessions and
+    --    plugin versions, so its shape is never assumed on load ──────────
+    do
+      config.setup({})
+      local cache_path = vim.fn.tempname()
+      local fd = assert(io.open(cache_path, "w"))
+      fd:write(vim.json.encode({ engine = "malformed", text = "no segments field at all" }))
+      fd:close()
+
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      cache_stub.file = function()
+        return cache_path, nil
+      end
+      local normalize_called = false
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      normalize_stub.normalize = function(_, callback)
+        normalize_called = true
+        callback("/tmp/fake.wav", nil)
+        return { cancel = function() end }
+      end
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      resolver_stub.resolve = function()
+        local fake_engine = {
+          id = "fake",
+          transcribe = function(_, _, callback)
+            callback({ engine = "fake", segments = {}, text = "re-run after a bad cache" }, nil)
+            return { cancel = function() end }
+          end,
+        }
+        return fake_engine, nil
+      end
+
+      local got
+      dispatcher.transcribe("/tmp/__dispatcher_spec_bad_cache.mkv", {}, function(t, e)
+        got = { t, e }
+      end)
+      vim.wait(2000, function()
+        return got ~= nil
+      end, 5)
+
+      os.remove(cache_path)
+      H.ok(got ~= nil, "the call still finished")
+      H.eq(
+        normalize_called,
+        true,
+        "a cache entry missing `segments` is treated as a miss, not read back as-is"
+      )
+      H.eq(
+        got[1] and got[1].text,
+        "re-run after a bad cache",
+        "the pipeline actually ran rather than handing back the malformed doc"
+      )
+    end
+
     -- ── a cache hit skips normalize/resolve/transcribe entirely ─────────
     do
       config.setup({})
