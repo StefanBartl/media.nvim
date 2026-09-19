@@ -139,19 +139,18 @@ function M.sheet(path, opts, callback)
       return
     end
 
-    local argv = M.args({
-      ffmpeg = bin,
-      path = path,
-      out = out,
-      rows = rows,
-      cols = cols,
-      width = width,
-      margin = margin,
-      duration = probe.duration,
-      keyframes_only = probe.duration > KEYFRAME_ONLY_ABOVE,
-    })
-
-    require("media.core.cache").ensure(out, function(done)
+    require("media.core.cache").ensure(out, function(done, tmp)
+      local argv = M.args({
+        ffmpeg = bin,
+        path = path,
+        out = tmp,
+        rows = rows,
+        cols = cols,
+        width = width,
+        margin = margin,
+        duration = probe.duration,
+        keyframes_only = probe.duration > KEYFRAME_ONLY_ABOVE,
+      })
       vim.system(argv, { text = true, timeout = cfg.sheet.timeout_ms }, function(result)
         if result.code ~= 0 then
           local stderr = (result.stderr or ""):gsub("%s+$", "")

@@ -17,7 +17,11 @@
 --- hovers over the same path, a picker moving down and back up: the second
 --- request arrives while the first render is still out. Two `ffmpeg` processes
 --- writing the same file is a corrupt PNG, so the second caller waits on the
---- first instead.
+--- first instead — within one Neovim. A second Neovim is not joined the same
+--- way (its own `inflight` table knows nothing of this one's), so a render
+--- never writes `out` directly: it gets a private `<out>.tmp-<pid>` and the
+--- rename onto `out` is the one step both sides share, atomically, so a
+--- reader never sees a half-written file from either.
 ---
 --- **And requests for *different* outputs are queued, not all started.** That
 --- is the other half, and it was missing until 2026-09-17: joining protects one
@@ -105,7 +109,7 @@ end
 --- One render waiting for a slot, or in one.
 ---@class Media.Cache.Entry
 ---@field waiters (fun(png: string|nil, err: string|nil): nil)[]
----@field render fun(done: fun(err: string|nil)): nil
+---@field render fun(done: fun(err: string|nil), tmp: string): nil
 ---@field priority Media.Cache.Priority
 ---@field started boolean
 
@@ -120,6 +124,18 @@ local queued = { high = {}, normal = {}, low = {} }
 local ORDER = { "high", "normal", "low" }
 
 local running = 0
+
+---@internal
+--- A path beside `out` that only this process writes to — ffmpeg's real
+--- destination, never `out` itself. Unique per output because `inflight`
+--- already serialises this process's own callers onto one render per `out`;
+--- what it cannot see is a second Neovim doing the same thing, and the pid
+--- is what keeps the two from landing on the same name.
+---@param out string
+---@return string
+local function tmp_for(out)
+  return out .. ".tmp-" .. uv.os_getpid()
+end
 
 ---@internal
 --- How many renders may be in flight at once.
@@ -165,12 +181,23 @@ local pump
 --- Finish one render: hand the result to everyone waiting on it, free the slot,
 --- and start whatever is next.
 ---@param out string
+---@param tmp string where the render actually wrote, per `tmp_for`
 ---@param err string|nil
 ---@return nil
-local function settle(out, err)
+local function settle(out, tmp, err)
   local entry = inflight[out]
   inflight[out] = nil
   running = math.max(0, running - 1)
+
+  -- The move onto `out` is the one step two racing Neovims share, and it is
+  -- atomic (ERR-31): a reader never observes a half-written file from either
+  -- side, and it folds in ffmpeg's "exited 0, wrote nothing" case below for
+  -- free — renaming a `tmp` that nothing ever wrote simply fails. A renderer
+  -- with its own multi-file promotion (`media.core.frames`) has already moved
+  -- what it produced by the time this runs, so the rename here is then a
+  -- harmless no-op against a `tmp` that was never a real path.
+  if not err then uv.fs_rename(tmp, out) end
+  uv.fs_unlink(tmp)
 
   -- A render that reported success but wrote nothing is a failure with a
   -- confusing face: the caller gets a path, hands it to an image drawer, and
@@ -215,27 +242,38 @@ function pump()
       -- would free two slots and let the queue run over its own limit, which
       -- is the one failure mode a concurrency bound must not have.
       local settled = false
-      entry.render(function(err)
+      local tmp = tmp_for(out)
+      local function finish(err)
         if settled then return end
         settled = true
-        settle(out, err)
-      end)
+        settle(out, tmp, err)
+      end
+      -- `pcall`ed: every renderer spawns a process with a bare `vim.system`,
+      -- which raises rather than erroring when the binary cannot be spawned
+      -- (a misconfigured `bin.ffmpeg`). Uncaught here, that raise would leave
+      -- `running` incremented forever with nothing left to bring it back
+      -- down — the queue wedges for the rest of the session.
+      local ok, spawn_err = pcall(entry.render, finish, tmp)
+      if not ok then finish(tostring(spawn_err)) end
     end
   end
 end
 
 --- Render `out` unless it is already there, and call back with its path.
 ---
---- `render(done)` is only ever invoked when the file is genuinely missing, no
---- other caller has it in flight, and a slot is free; it reports through
---- `done(err)`.
+--- `render(done, tmp)` is only ever invoked when the file is genuinely
+--- missing, no other caller has it in flight, and a slot is free; it reports
+--- through `done(err)`. `tmp` is where it must actually write — never `out`
+--- itself, which a second Neovim process could be writing at the same moment
+--- (ERR-31); `settle` moves the finished file onto `out` atomically once
+--- `done` reports success.
 ---
 --- The returned handle drops *this* caller's interest. It does not stop a
 --- render that has already started — the caller's own process handle does that
 --- (`media.core.frames`) — but a render still waiting for a slot that nobody
 --- is left waiting on is removed from the queue rather than run for nobody.
 ---@param out string
----@param render fun(done: fun(err: string|nil)): nil
+---@param render fun(done: fun(err: string|nil), tmp: string): nil
 ---@param callback fun(png: string|nil, err: string|nil): nil
 ---@param opts { priority: Media.Cache.Priority }|nil
 ---@return { cancel: fun(): nil }
@@ -308,6 +346,10 @@ end
 local CACHED_EXTENSIONS = { png = true, wav = true, json = true }
 
 --- Delete every rendered still, converted audio track and cached transcript.
+---
+--- Also sweeps a `tmp_for` leftover: normally `settle` removes its own, but a
+--- Neovim killed mid-render (not a graceful `:qa`) leaves one behind with no
+--- extension this cache would otherwise recognise as its own.
 ---@return integer removed
 function M.clear()
   local dir = M.dir()
@@ -318,7 +360,8 @@ function M.clear()
     local name, kind = uv.fs_scandir_next(handle)
     if not name then break end
     local ext = name:match("%.([^.]+)$")
-    if kind == "file" and ext and CACHED_EXTENSIONS[ext] then
+    local orphaned_tmp = name:match("%.tmp%-%d+") ~= nil
+    if kind == "file" and ((ext and CACHED_EXTENSIONS[ext]) or orphaned_tmp) then
       if uv.fs_unlink(dir .. "/" .. name) then removed = removed + 1 end
     end
   end

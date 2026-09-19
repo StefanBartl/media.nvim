@@ -102,17 +102,16 @@ local function render(mode, path, opts, callback)
       return
     end
 
-    local argv = M.args({
-      ffmpeg = bin,
-      path = path,
-      out = out,
-      width = width,
-      height = height,
-      mode = mode,
-      colors = colors,
-    })
-
-    require("media.core.cache").ensure(out, function(done)
+    require("media.core.cache").ensure(out, function(done, tmp)
+      local argv = M.args({
+        ffmpeg = bin,
+        path = path,
+        out = tmp,
+        width = width,
+        height = height,
+        mode = mode,
+        colors = colors,
+      })
       vim.system(argv, { text = true, timeout = cfg.waveform.timeout_ms }, function(result)
         if result.code ~= 0 then
           local stderr = (result.stderr or ""):gsub("%s+$", "")

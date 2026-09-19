@@ -99,9 +99,8 @@ function M.normalize(path, callback)
       return
     end
 
-    local argv = M.args({ ffmpeg = bin, path = path, out = out })
-
-    require("media.core.cache").ensure(out, function(done)
+    require("media.core.cache").ensure(out, function(done, tmp)
+      local argv = M.args({ ffmpeg = bin, path = path, out = tmp })
       proc = vim.system(
         argv,
         { text = true, timeout = cfg.transcribe.normalize_timeout_ms },

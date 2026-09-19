@@ -207,6 +207,83 @@ return function(H)
     end, 5)
     H.eq(b_called, true, "and answers the caller that stayed")
     H.eq(a_called, false, "but not the one that left")
+
+    -- ── ERR-31: the render writes to a tmp path, never straight to `out`,
+    --    and only a successful `done` moves it into place ─────────────────
+    do
+      local uv = vim.uv or vim.loop
+      local out = fresh()
+      local seen_tmp, finish
+      cache.ensure(out, function(done, tmp)
+        seen_tmp = tmp
+        finish = done
+      end, function() end)
+
+      H.ok(seen_tmp ~= nil, "the render was handed a tmp path")
+      H.ok(seen_tmp ~= out, "which is not the final name")
+
+      local fd = assert(io.open(seen_tmp, "w"))
+      fd:write("stub png bytes")
+      fd:close()
+      H.eq(uv.fs_stat(out), nil, "and nothing is at the final name until `done` reports success")
+
+      finish(nil)
+      vim.wait(300, function()
+        return running() == 0
+      end, 5)
+
+      H.ok(uv.fs_stat(out) ~= nil, "success moves the file onto the final name")
+      H.eq(uv.fs_stat(seen_tmp), nil, "and the tmp file is gone, not left behind")
+      os.remove(out)
+    end
+
+    -- ── ERR-31: a failed render leaves no orphaned tmp file behind ────────
+    do
+      local uv = vim.uv or vim.loop
+      local out = fresh()
+      local seen_tmp, finish
+      cache.ensure(out, function(done, tmp)
+        seen_tmp = tmp
+        local fd = assert(io.open(tmp, "w"))
+        fd:write("partial")
+        fd:close()
+        finish = done
+      end, function() end)
+
+      finish("ffmpeg exited with 1")
+      vim.wait(300, function()
+        return running() == 0
+      end, 5)
+
+      H.eq(uv.fs_stat(out), nil, "a failed render never lands at the final name")
+      H.eq(uv.fs_stat(seen_tmp), nil, "and its tmp file is cleaned up rather than orphaned")
+    end
+
+    -- ── ERR-01: a render that raises instead of calling `done` must not
+    --    wedge the queue -- `pump` catches it and settles the slot itself ──
+    do
+      local out = fresh()
+      cache.ensure(out, function()
+        error("spawn failed: ENOENT")
+      end, function() end)
+
+      vim.wait(300, function()
+        return running() == 0
+      end, 5)
+      H.eq(running(), 0, "the slot was freed even though the render raised instead of calling done")
+
+      -- The queue is provably not wedged: a normal render after it still runs.
+      local next_out = fresh()
+      local next_started = false
+      cache.ensure(next_out, function(done)
+        next_started = true
+        done(nil)
+      end, function() end)
+      vim.wait(300, function()
+        return next_started
+      end, 5)
+      H.ok(next_started, "a later render still starts -- `running` did not stay stuck")
+    end
   end)
 
   config.setup({})
