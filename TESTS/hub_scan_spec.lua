@@ -125,6 +125,20 @@ return function(H)
     H.ok(#capped <= 3, "the entry cap holds")
     H.ok(type(capped) == "table", "and stopping returns the partial list rather than failing")
 
+    -- ── ERR-11: a directory `fs_scandir` cannot open is distinguishable from
+    --    one that opened and was simply empty -- both give zero paths ──────
+    -- A plain file stood in for "cannot open": `fs_scandir` on it fails the
+    -- same way a permission-denied directory would, without needing real
+    -- ACL/chmod plumbing this spec would then have to clean up.
+    local blocked_paths, blocked_dirs = scan.walk(root .. "/init.lua", nil, 20000)
+    H.eq(#blocked_paths, 0, "nothing was found under a path that could not be opened")
+    H.eq(#blocked_dirs, 1, "and that is reported, rather than looking like an empty directory")
+    H.eq(blocked_dirs[1], root .. "/init.lua", "naming the one that could not be read")
+
+    local clean_paths, clean_dirs = scan.walk(root .. "/talks", nil, 20000)
+    H.ok(#clean_paths > 0, "a real, readable directory still walks normally")
+    H.eq(#clean_dirs, 0, "and reports nothing unreadable")
+
     -- ── the three-way status, which is the whole point of the column ────
     local status, sidecar, age = scan.status(root .. "/talks/standup.mp4")
     H.eq(status, "missing", "no sidecar at all is `missing` — a job not yet done")
