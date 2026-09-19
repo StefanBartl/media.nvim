@@ -181,16 +181,15 @@ function M.frame(path, opts, callback)
       return
     end
 
-    local argv = M.args({
-      ffmpeg = bin,
-      path = path,
-      out = out,
-      at = resolved,
-      width = width,
-      cover = cover,
-    })
-
-    require("media.core.cache").ensure(out, function(done)
+    require("media.core.cache").ensure(out, function(done, tmp)
+      local argv = M.args({
+        ffmpeg = bin,
+        path = path,
+        out = tmp,
+        at = resolved,
+        width = width,
+        cover = cover,
+      })
       vim.system(argv, { text = true, timeout = cfg.timeout_ms }, function(result)
         if result.code ~= 0 then
           local stderr = (result.stderr or ""):gsub("%s+$", "")

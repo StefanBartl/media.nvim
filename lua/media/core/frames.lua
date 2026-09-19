@@ -208,7 +208,7 @@ function M.frames(path, opts, callback)
       return
     end
 
-    local pattern, outs = M.outputs(base, count)
+    local _, outs = M.outputs(base, count)
 
     -- Frame 1 is the sentinel the cache joins on: ffmpeg writes the run in
     -- order, so if it exists the run was started, and `existing_prefix` says
@@ -217,11 +217,17 @@ function M.frames(path, opts, callback)
     -- `"high"`: a playback window has a deadline the other renders do not. The
     -- transport asks a second before it needs the next one, and a queue of
     -- stills ahead of it is longer than that. See `media.core.cache`'s header.
-    queued_render = require("media.core.cache").ensure(outs[1], function(done)
+    queued_render = require("media.core.cache").ensure(outs[1], function(done, tmp)
+      -- `outs[1]`'s own tmp path becomes the base for a whole tmp run: ffmpeg
+      -- writes the numbered sequence there, never onto `pattern`/`outs`
+      -- directly, for the reason `media.core.cache`'s header gives — a second
+      -- Neovim rendering the same key must not land frames in the same place
+      -- at the same time.
+      local tmp_pattern, tmp_outs = M.outputs(tmp, count)
       local argv = M.args({
         ffmpeg = bin,
         path = path,
-        pattern = pattern,
+        pattern = tmp_pattern,
         from = resolved,
         count = count,
         fps = fps,
@@ -230,9 +236,27 @@ function M.frames(path, opts, callback)
       proc = vim.system(argv, { text = true, timeout = cfg.timeout_ms }, function(result)
         proc = nil
         if result.code ~= 0 then
+          for _, tout in ipairs(tmp_outs) do
+            uv.fs_unlink(tout)
+          end
           local stderr = (result.stderr or ""):gsub("%s+$", "")
           done(stderr ~= "" and stderr or ("ffmpeg exited with " .. tostring(result.code)))
           return
+        end
+        -- Promote the leading run that actually exists, mirroring
+        -- `existing_prefix` below: ffmpeg stops writing at end of stream, so a
+        -- gap here is where the run ended, not damage. Each rename is atomic,
+        -- so a reader following along mid-promotion sees a complete earlier
+        -- run or this one, never a half-written frame from either.
+        for i, tout in ipairs(tmp_outs) do
+          if uv.fs_stat(tout) then
+            uv.fs_rename(tout, outs[i])
+          else
+            break
+          end
+        end
+        for _, tout in ipairs(tmp_outs) do
+          uv.fs_unlink(tout)
         end
         done(nil)
       end)
