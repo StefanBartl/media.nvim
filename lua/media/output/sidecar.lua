@@ -66,10 +66,13 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.write(path, transcript)
-  local fd, err = io.open(M.path(path), "w")
-  if not fd then return false, err or ("could not open " .. M.path(path)) end
-  fd:write(M.content(path, transcript))
-  fd:close()
+  local sidecar_path = M.path(path)
+  local fd, err = io.open(sidecar_path, "w")
+  if not fd then return false, err or ("could not open " .. sidecar_path) end
+  local wok, werr = fd:write(M.content(path, transcript))
+  local cok, cerr = fd:close()
+  if not wok then return false, werr or ("could not write " .. sidecar_path) end
+  if not cok then return false, cerr or ("could not close " .. sidecar_path) end
   return true, nil
 end
 
