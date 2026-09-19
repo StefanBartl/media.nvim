@@ -165,12 +165,24 @@ function M.start(path, opts)
   local cfg = require("media.config").get()
   local window = type(cfg.window) == "table" and cfg.window or {}
 
+  -- Not `opts.ontop ~= nil and opts.ontop or window.ontop` (ERR-60): the
+  -- middle term is a caller-supplied boolean, and `false` is exactly the
+  -- override anybody would actually pass — `and/or` collapses it straight
+  -- back to `window.ontop`, which makes the per-call override inoperative in
+  -- the one direction it exists for.
+  local ontop
+  if opts.ontop ~= nil then
+    ontop = opts.ontop
+  else
+    ontop = window.ontop
+  end
+
   local argv = M.args({
     mpv = mpv,
     path = path,
     at = (type(opts.at) == "number" or type(opts.at) == "string") and opts.at or nil,
     autofit = opts.autofit ~= nil and opts.autofit or window.autofit,
-    ontop = opts.ontop ~= nil and opts.ontop or window.ontop,
+    ontop = ontop,
     mute = opts.mute == true,
     screen = type(opts.screen) == "number" and opts.screen or nil,
     extra = type(window.args) == "table" and window.args or nil,
