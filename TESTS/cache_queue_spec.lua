@@ -221,6 +221,13 @@ return function(H)
 
       H.ok(seen_tmp ~= nil, "the render was handed a tmp path")
       H.ok(seen_tmp ~= out, "which is not the final name")
+      H.eq(
+        seen_tmp:match("%.([^.]+)$"),
+        out:match("%.([^.]+)$"),
+        "and ends in the same extension as `out` — ffmpeg picks its output "
+          .. "format from the filename, and a tmp path ending in `.tmp-<pid>` "
+          .. "instead of `.png` fails with 'Unable to choose an output format'"
+      )
 
       local fd = assert(io.open(seen_tmp, "w"))
       fd:write("stub png bytes")
