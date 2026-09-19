@@ -5,10 +5,17 @@
 | | |
 | --- | --- |
 | Neovim | **0.10+** (`vim.system`, `vim.uv`) |
-| [lib.nvim](https://github.com/StefanBartl/lib.nvim) | required |
+| [lib.nvim](https://github.com/StefanBartl/lib.nvim) | recommended — soft dependency, see below |
 | `ffmpeg` + `ffprobe` | required — one install, both binaries |
 | `mpv` | optional — sound for a played run, and `:Media window` / `media.play_window()` |
 | [whisper.cpp](https://github.com/ggml-org/whisper.cpp)'s `whisper-cli` + a GGML model | optional — `media.transcribe()` / `:Media transcribe` |
+
+Every place this plugin reaches for lib.nvim falls back to a plain Neovim
+equivalent when it is missing (`:checkhealth media` reports this under
+"optional integrations", never as an error) — but the fallback is visibly
+poorer: `:Media` loses tab completion, the float dashboard becomes a
+`vim.notify` list, and a transcription runs with no progress indicator or
+cancel key. Install it unless you have a specific reason not to.
 
 ```bash
 winget install Gyan.FFmpeg          # Windows

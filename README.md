@@ -49,9 +49,13 @@ the word "binary".
 > consumer: a `.mp4` path under the cursor opens a float with the poster frame
 > in it, in the video's own aspect ratio.
 >
-> All of the above are soft: without them everything else works unchanged.
-> [lib.nvim](https://github.com/StefanBartl/lib.nvim) is the one real
-> dependency — see [Requirements](docs/installation.md#requirements).
+> All of the above are soft, and so is
+> [lib.nvim](https://github.com/StefanBartl/lib.nvim) — every place that uses
+> it falls back to a plain Neovim equivalent, `:checkhealth media` included.
+> It is the one worth having anyway: without it `:Media` loses tab
+> completion, the float dashboard becomes a `vim.notify` list, and a
+> transcription runs with no progress indicator. See
+> [Requirements](docs/installation.md#requirements).
 
 ---
 
