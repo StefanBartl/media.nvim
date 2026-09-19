@@ -83,4 +83,35 @@ return function(H)
     streams = { { codec_type = "video", codec_name = "h264", duration = "61.2" } },
   })
   H.ok(math.abs(from_stream.duration - 61.2) < 0.001, "stream duration is the fallback")
+
+  -- ── ERR-01: a misconfigured ffprobe must not raise out of M.probe ────────
+  -- `vim.system` raises rather than erroring when the binary cannot be
+  -- spawned at all -- the module's own contract two lines up in the source
+  -- says the callback "runs exactly once", and a misconfigured `bin.ffprobe`
+  -- must not be the one way to break that.
+  do
+    local config = require("media.config")
+    local bin = require("media.core.bin")
+    config.setup({ bin = { ffprobe = "E:/__probe_spec__/does-not-exist.exe" } })
+    bin.reset("ffprobe")
+
+    local scratch = vim.fn.tempname()
+    vim.fn.writefile({ "x" }, scratch)
+
+    local got_probe, got_err
+    probe.probe(scratch, function(result, e)
+      got_probe, got_err = result, e
+    end)
+    vim.wait(2000, function()
+      return got_err ~= nil or got_probe ~= nil
+    end, 5)
+
+    os.remove(scratch)
+    -- Leave no trace for later specs: a real, uncached lookup again.
+    bin.reset("ffprobe")
+    config.setup({})
+
+    H.eq(got_probe, nil, "no probe result from an unspawnable ffprobe")
+    H.ok(got_err ~= nil, "the callback still fired exactly once, with an error, instead of raising")
+  end
 end

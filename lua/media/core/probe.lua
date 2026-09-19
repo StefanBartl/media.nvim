@@ -255,15 +255,19 @@ function M.probe(path, callback)
 
   local timeout = require("media.config").get().timeout_ms
 
-  vim.system(argv, { text = true, timeout = timeout }, function(result)
+  -- `pcall`ed: `vim.system` raises rather than erroring when the binary
+  -- cannot be spawned at all (a misconfigured `bin.ffprobe`), which would
+  -- otherwise break this module's own "callback runs exactly once" promise
+  -- and leave `inflight[path]` populated forever for every waiter after it.
+  local ok, spawn_err = pcall(vim.system, argv, { text = true, timeout = timeout }, function(result)
     if result.code ~= 0 then
       local stderr = (result.stderr or ""):gsub("%s+$", "")
       finish(nil, stderr ~= "" and stderr or ("ffprobe exited with " .. tostring(result.code)))
       return
     end
 
-    local ok, doc = pcall(vim.json.decode, result.stdout or "")
-    if not ok or type(doc) ~= "table" then
+    local decode_ok, doc = pcall(vim.json.decode, result.stdout or "")
+    if not decode_ok or type(doc) ~= "table" then
       finish(nil, "ffprobe produced no readable JSON")
       return
     end
@@ -272,6 +276,7 @@ function M.probe(path, callback)
     cache[path] = { mtime = stat.mtime and stat.mtime.sec or 0, probe = probe }
     finish(probe, nil)
   end)
+  if not ok then finish(nil, tostring(spawn_err)) end
 end
 
 --- Drop everything remembered about probed files.
