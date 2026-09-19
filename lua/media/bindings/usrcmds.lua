@@ -18,6 +18,30 @@
 local M = {}
 
 ---@internal
+--- `~`/env expansion only -- never Vim's filename specials or a shell command
+--- substitution, both of which `vim.fn.expand()` performs on a backtick span
+--- or a `%`/`#`/`<cfile>` argument (SEC-34): the argument here is whatever a
+--- user typed after `:Media <verb>`. `lib.nvim.cross.fs.expand_path` when
+--- present; a small equivalent when not, so `M.register_fallback` keeps
+--- working without lib.nvim installed.
+---@param path string
+---@return string
+local function expand_path(path)
+  local ok, expand = pcall(require, "lib.nvim.cross.fs.expand_path")
+  if ok then return expand(path) end
+  if path:sub(1, 1) == "~" then
+    local home = (vim.uv or vim.loop).os_homedir()
+    if home then path = home .. path:sub(2) end
+  end
+  path = path:gsub("%%([%w_]+)%%", function(name)
+    return vim.env[name] or ("%" .. name .. "%")
+  end)
+  return (path:gsub("%$([%w_]+)", function(name)
+    return vim.env[name] or ("$" .. name)
+  end))
+end
+
+---@internal
 --- Path completion that offers media files first.
 ---
 --- Meaningfully different from the composer's built-in PATH type (a plain
@@ -50,7 +74,7 @@ end
 ---@param explicit string|nil
 ---@return string|nil
 function M.resolve_path(explicit)
-  if explicit and explicit ~= "" then return vim.fn.expand(explicit) end
+  if explicit and explicit ~= "" then return expand_path(explicit) end
   return require("media.bindings.keymaps").target()
 end
 
