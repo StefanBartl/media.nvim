@@ -69,8 +69,10 @@ end
 local function write(path, content)
   local fd, err = io.open(path, "w")
   if not fd then return false, err or ("could not open " .. path) end
-  fd:write(content)
-  fd:close()
+  local wok, werr = fd:write(content)
+  local cok, cerr = fd:close()
+  if not wok then return false, werr or ("could not write " .. path) end
+  if not cok then return false, cerr or ("could not close " .. path) end
   return true, nil
 end
 
