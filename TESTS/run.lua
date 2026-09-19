@@ -42,6 +42,8 @@ local specs = {
   "hub_text_spec.lua",
   "hub_dashboard_spec.lua",
   "hub_actions_spec.lua",
+  "keymaps_target_spec.lua",
+  "usrcmds_resolve_path_spec.lua",
   "segments_spec.lua",
   "srt_spec.lua",
   "vtt_spec.lua",

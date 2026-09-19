@@ -29,8 +29,11 @@ M.DESCRIPTIONS = {
 --- buffer's own name.
 ---@return string|nil
 function M.target()
-  local cfile = vim.fn.expand("<cfile>")
-  if type(cfile) == "string" and cfile ~= "" then
+  -- `pcall`ed: `<cfile>` throws `E446` rather than answering `""` when there
+  -- is nothing under the cursor (SEC-34) — an empty or whitespace-only line
+  -- must fall through to the buffer-name fallback below, not abort the key.
+  local ok, cfile = pcall(vim.fn.expand, "<cfile>")
+  if ok and type(cfile) == "string" and cfile ~= "" then
     local abs = vim.fn.fnamemodify(cfile, ":p")
     if vim.fn.filereadable(abs) == 1 then return abs end
     if vim.fn.filereadable(cfile) == 1 then return cfile end
