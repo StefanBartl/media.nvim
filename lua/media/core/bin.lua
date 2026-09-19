@@ -18,8 +18,13 @@
 --- **The answer is cached per session**, including the negative one. Both
 --- `probe` and `frame` ask before every run, a miss costs three `fs_stat`
 --- calls, and neither number matters once — but a hover asks while a cursor
---- moves, and there the loop is the cost. `M.reset()` exists for the case the
---- cache is wrong about: installing ffmpeg with Neovim already open.
+--- moves, and there the loop is the cost.
+---
+--- **The cache key includes `config.get().bin[name]`**, not just `name`: a
+--- `setup()` call that changes `bin.ffmpeg` is a different answer, and is
+--- seen on the very next `find()`, no `M.reset()` needed. `M.reset()` still
+--- exists for what a config diff cannot see: installing ffmpeg, or editing
+--- PATH, with Neovim already open.
 
 local M = {}
 
@@ -48,7 +53,11 @@ local function well_known(name)
   }
 end
 
----@type table<string, string|false> false = "looked for, not found"
+---@class Media.Bin.CacheEntry
+---@field cfg string|nil     # `config.get().bin[name]` at the time this was resolved
+---@field val string|false   # false = "looked for, not found"
+
+---@type table<string, Media.Bin.CacheEntry>
 local resolved = {}
 
 ---@internal
@@ -73,41 +82,44 @@ end
 ---@param name string "ffmpeg", "ffprobe", "mpv", …
 ---@return string|nil
 function M.find(name)
-  local cached = resolved[name]
-  if cached ~= nil then return cached or nil end
-
   local configured = require("media.config").get().bin[name]
+
+  local cached = resolved[name]
+  if cached ~= nil and cached.cfg == configured then return cached.val or nil end
+
   if type(configured) == "string" and configured ~= "" then
     -- An explicit path is honoured as given, including when it does not exist:
     -- the error the user then gets names their own setting, which is a better
     -- place to start looking than "ffmpeg not found".
-    resolved[name] = configured
+    resolved[name] = { cfg = configured, val = configured }
     return configured
   end
 
   local ok, executable = pcall(require, "lib.nvim.cross.executable")
   if ok and executable.exists(name) then
-    resolved[name] = name
+    resolved[name] = { cfg = configured, val = name }
     return name
   end
   if not ok and vim.fn.executable(name) == 1 then
-    resolved[name] = name
+    resolved[name] = { cfg = configured, val = name }
     return name
   end
 
   for _, candidate in ipairs(well_known(name)) do
     if is_file(candidate) then
-      resolved[name] = candidate
+      resolved[name] = { cfg = configured, val = candidate }
       return candidate
     end
   end
 
-  resolved[name] = false
+  resolved[name] = { cfg = configured, val = false }
   return nil
 end
 
---- Forget what was found, so the next `find` looks again. For the case that
---- motivated the cache being wrong: ffmpeg installed while Neovim was open.
+--- Forget what was found, so the next `find` looks again. A config change
+--- already invalidates itself (see the cache key above); this is for what a
+--- config diff cannot see — ffmpeg installed, or PATH edited, while Neovim
+--- was already open.
 ---@param name string|nil  # one binary, or all of them
 ---@return nil
 function M.reset(name)
