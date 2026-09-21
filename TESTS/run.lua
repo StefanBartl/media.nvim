@@ -1,7 +1,7 @@
 -- TESTS/run.lua — headless test runner for media.nvim.
 --
 -- Run from the repo root (lib.nvim must be reachable as a sibling):
---   nvim --headless -u NONE -c "set rtp+=." -c "set rtp+=../lib.nvim" \
+--   nvim -n -i NONE --headless -u NONE -c "set rtp+=." -c "set rtp+=../lib.nvim" \
 --        -c "luafile TESTS/run.lua" -c "qa!"
 --
 -- Loads every *_spec.lua listed below, runs it against the shared harness,
