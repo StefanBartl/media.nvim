@@ -20,6 +20,9 @@
 ![Status](https://img.shields.io/badge/status-beta-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 [![CI](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml)
+[![wkd](https://img.shields.io/badge/wkd-family-c6ff3d)](https://stefanbartl.github.io/wkd/p/media/)
+
+> Part of the [wkd](https://stefanbartl.github.io/wkd/) family — see this plugin's [page](https://stefanbartl.github.io/wkd/p/media/) on the site.
 
 **What is in this media file, one picture of it, and — a video or an audio
 file's speech, turned into text.** `ffprobe` says how long, how big and in
