@@ -12,6 +12,8 @@
 --- binding nothing. Without lib.nvim installed the same four keys are set
 --- directly — the plugin is usable, it just loses the registry's diagnostics.
 
+local notify = require("media.util.notify")
+
 local M = {}
 
 ---@type string[] Declaration order: what the docs and which-key read.
@@ -50,7 +52,7 @@ local function run(action)
   return function()
     local path = M.target()
     if not path then
-      vim.notify("no media file under the cursor", vim.log.levels.WARN, { title = "media.nvim" })
+      notify.warn("no media file under the cursor")
       return
     end
     require("media.bindings.usrcmds").run(action, path)

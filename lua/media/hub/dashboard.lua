@@ -28,6 +28,8 @@
 --- plugin does not own and will not shell out to behind pdfport's back; that
 --- column stays blank rather than guessed.
 
+local notify = require("media.util.notify")
+
 local M = {}
 
 --- How many files the view will probe to fill in the detail column.
@@ -370,7 +372,7 @@ end
 ---@param level integer|nil
 ---@return nil
 local function say(message, level)
-  vim.notify(message, level or vim.log.levels.INFO, { title = "media.nvim" })
+  notify.notify(message, level)
 end
 
 ---@internal
