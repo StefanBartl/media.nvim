@@ -29,6 +29,7 @@ package.path = table.concat({
 -- depend on that having happened.
 local specs = {
   "config_spec.lua",
+  "util_notify_spec.lua",
   "formats_spec.lua",
   "probe_spec.lua",
   "frame_args_spec.lua",

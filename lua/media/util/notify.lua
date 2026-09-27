@@ -14,17 +14,28 @@
 local ok, lib = pcall(require, "lib.nvim.notify")
 if ok then return lib.create("[media.nvim]", { popup = true, source = "media" }) end
 
+---Every pre-existing vim.notify call site in this plugin passed an explicit
+---`{ title = "media.nvim" }` (or a dynamic title, for scratch()'s fallback).
+---A default here keeps that identification for callers that now omit opts
+---entirely, without overriding one a caller does supply (e.g. a filename).
+---@param opts table|nil
+---@return table
+local function with_default_title(opts)
+  if opts and opts.title then return opts end
+  return vim.tbl_extend("force", opts or {}, { title = "media.nvim" })
+end
+
 return {
   notify = function(msg, level, opts)
-    vim.notify(msg, level or vim.log.levels.INFO, opts)
+    vim.notify(msg, level or vim.log.levels.INFO, with_default_title(opts))
   end,
   info = function(msg, opts)
-    vim.notify(msg, vim.log.levels.INFO, opts)
+    vim.notify(msg, vim.log.levels.INFO, with_default_title(opts))
   end,
   warn = function(msg, opts)
-    vim.notify(msg, vim.log.levels.WARN, opts)
+    vim.notify(msg, vim.log.levels.WARN, with_default_title(opts))
   end,
   error = function(msg, opts)
-    vim.notify(msg, vim.log.levels.ERROR, opts)
+    vim.notify(msg, vim.log.levels.ERROR, with_default_title(opts))
   end,
 }
