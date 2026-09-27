@@ -15,6 +15,8 @@
 --- one of the recurring defects in this ecosystem is a command and its key
 --- drifting apart because each grew its own copy of the work.
 
+local notify = require("media.util.notify")
+
 local M = {}
 
 ---@internal
@@ -83,7 +85,7 @@ end
 ---@param level integer|nil
 ---@return nil
 local function say(message, level)
-  vim.notify(message, level or vim.log.levels.INFO, { title = "media.nvim" })
+  notify.notify(message, level)
 end
 
 ---@internal

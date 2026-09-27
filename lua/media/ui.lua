@@ -12,6 +12,8 @@
 --- step down is still an answer to what the user asked, which is the bar for
 --- letting an optional dependency be optional.
 
+local notify = require("media.util.notify")
+
 local M = {}
 
 ---@internal
@@ -136,7 +138,7 @@ local function scratch(lines, title)
     })
     return
   end
-  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = title })
+  notify.info(table.concat(lines, "\n"), { title = title })
 end
 
 --- Probe `path` and show the record.
@@ -145,7 +147,7 @@ end
 function M.show_probe(path)
   require("media.core.probe").probe(path, function(probe, err)
     if not probe then
-      vim.notify(err or "probe failed", vim.log.levels.ERROR, { title = "media.nvim" })
+      notify.error(err or "probe failed")
       return
     end
     scratch(M.describe(probe), " media: " .. vim.fn.fnamemodify(path, ":t") .. " ")
@@ -177,7 +179,7 @@ function M.show_image(png)
   -- The last rung is still an answer: the file exists, it is a PNG, and the
   -- path is copyable. Silently doing nothing here would look like the render
   -- failed, which it did not.
-  vim.notify(png, vim.log.levels.INFO, { title = "media.nvim" })
+  notify.info(png)
 end
 
 return M
