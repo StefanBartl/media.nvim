@@ -35,6 +35,9 @@ Anything that can draw a picture can
 then show a video — which was, until now, everywhere just a size in bytes and
 the word "binary".
 
+A bare `:Media` describes the file under the cursor (or the current buffer);
+when there is none it opens the dashboard.
+
 ---
 
 ## Around it

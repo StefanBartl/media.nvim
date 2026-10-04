@@ -60,7 +60,8 @@ before you press one.
                                                                       *:Media*
 :Media [path]           Describe the file: duration, size, bitrate,
                         resolution, frame rate, codecs, channels. Same as
-                        `:Media probe`.
+                        `:Media probe`. With no path and no file under the
+                        cursor it opens `:Media dashboard` instead.
 
 :Media probe [path]     As above.
 
