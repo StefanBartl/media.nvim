@@ -442,6 +442,23 @@ function M.run(action, path, opts)
 end
 
 ---@internal
+--- The bare `:Media`: with a path (or a file under the cursor) it is the
+--- probe, with neither it opens the dashboard -- "I do not know yet which
+--- file" is exactly what the dashboard answers, and this case used to be only
+--- a warning. Both registration paths (composer and fallback) go through here
+--- so they cannot drift apart.
+---@param explicit string|nil  # the `[path]` argument as typed
+---@return nil
+function M.bare(explicit)
+  local path = M.resolve_path(explicit)
+  if path then
+    M.run("probe", path)
+    return
+  end
+  require("media.hub.dashboard").open()
+end
+
+---@internal
 ---@param ctx table
 ---@param verb string
 ---@return string|nil
@@ -492,10 +509,9 @@ function M.register()
       {
         path = {},
         args = path_arg,
-        desc = "Describe the file  :Media [path]",
+        desc = "Describe the file, or open the dashboard when there is none  :Media [path]",
         run = function(ctx)
-          local path = require_path(ctx, "Media")
-          if path then M.run("probe", path) end
+          M.bare(ctx.args and ctx.args.path)
         end,
       },
 
@@ -704,7 +720,11 @@ end
 ---@return nil
 function M.register_fallback()
   vim.api.nvim_create_user_command("Media", function(cmd)
-    local sub = cmd.fargs[1] or "probe"
+    if #cmd.fargs == 0 then
+      M.bare(nil)
+      return
+    end
+    local sub = cmd.fargs[1]
     local path = M.resolve_path(cmd.fargs[2])
     if sub == "cache" then
       say(("%d cached still(s) removed"):format(require("media").clear_cache()))

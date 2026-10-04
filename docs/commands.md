@@ -16,6 +16,11 @@ Describe the file. The same as `:Media probe`, and the root route because it is
 the cheapest useful answer — it tells you whether the others are worth asking
 for.
 
+With no path **and** no file under the cursor (and no readable current buffer)
+the bare command opens `:Media dashboard` instead of complaining — "I do not
+know yet which file" is exactly what the dashboard answers. With a path, or a
+file to act on, it stays the probe.
+
 ## `:Media probe [path]`
 
 Opens a scratch window with the record:

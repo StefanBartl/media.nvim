@@ -6,7 +6,7 @@
 | `<leader>Mf` | normal | poster frame |
 | `<leader>Ms` | normal | contact sheet |
 | `<leader>Mo` | normal | play in an external player |
-| `:Media [path]` | command | the same description, by name |
+| `:Media [path]` | command | the same description, by name; with no path and no file under the cursor, the dashboard |
 | `:Media waveform [path]` / `:Media spectrogram [path]` | command | a picture of the audio track |
 | `:Media dashboard` | command | one list across image/pdf/audio/video — text missing, stale or fine |
 | `:Media text [path]` | command | anything to text — image → OCR, PDF → extract, audio/video → transcribe |
