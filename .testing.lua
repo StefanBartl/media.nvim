@@ -13,5 +13,25 @@ return {
   deps = { "lib.nvim" },
   -- "none" = all specs in one nvim, "file" = one nvim per spec file
   -- (nothing leaks from one file into the next).
-  isolated = "none",
+  isolated = "file",
+  -- Safety nets (testing.nvim docs/GUARDS.md). With "file" the setup() state of smoke_spec (the
+  -- MediaNvim autocmd group, :Media, the \M* keymaps) stays in that file's own nvim, so the state
+  -- guard is silent and runs in "error" mode like all the others: the suite is clean under them.
+  guards = {
+    fs = "error",
+    state = "error",
+    scheduled_error = "error",
+    prompt = "error",
+    deprecation = "error",
+    process_net = "error",
+  },
+  guard_allow = {
+    -- Executables a spec may start on purpose.
+    spawn = {
+      -- health_spec runs the real `ffmpeg -version` through the plugin's health check.
+      "ffmpeg",
+      -- probe_spec starts a deliberately nonexistent binary to cover the "tool missing" path.
+      "does-not-exist",
+    },
+  },
 }
