@@ -59,18 +59,25 @@ either.
 ## Tests
 
 ```bash
-nvim --headless -u NONE -c "set rtp+=." -c "set rtp+=../lib.nvim" \
-     -c "luafile TESTS/run.lua" -c "qa!"
+bash scripts/test.sh                  # every spec under TESTS/
+bash scripts/test.sh --file config    # only spec files whose name contains "config"
 ```
+
+The specs run on [testing.nvim](https://github.com/StefanBartl/testing.nvim) with
+the project's own `TESTS/harness.lua` (dialect `h`, see `.testing.lua`). The script
+looks for testing.nvim and lib.nvim in `$TESTING_NVIM_DIR` / `$LIB_NVIM_DIR`,
+`.deps/<name>`, a sibling checkout, and `stdpath('data')/lazy/<name>`, and fails
+loudly (exit 1) when one is missing.
 
 Framework-free, and needs **no ffmpeg**. That is not a limitation but the design:
 the decisions worth asserting — argument order, offset arithmetic, cache-key
 separation, ffprobe's JSON shapes — are all pure functions, split out from the
 processes that use them for exactly this reason.
 
-The runner exits non-zero on any failure and prints which spec failed. If you add
-a spec, add its filename to the list in `TESTS/run.lua`; `smoke_spec.lua` stays
-last, because it calls `setup()` and the specs before it assert against a state
+The runner exits non-zero on any failure and prints which spec failed. Specs are
+discovered by name (`*_spec.lua`); `TESTS/run.lua` is no longer executed, it only
+fixes the order (testing.nvim reads its list). If you add a spec, add its filename
+there too; `smoke_spec.lua` stays last, because it calls `setup()` and the specs before it assert against a state
 where that has not happened.
 
 ## Ground rules

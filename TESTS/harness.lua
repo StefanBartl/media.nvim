@@ -1,5 +1,5 @@
 -- TESTS/harness.lua — tiny assertion helper shared by the spec files.
--- Returned to each spec by TESTS/run.lua.
+-- Handed to each spec by testing.nvim (dialect "h", see .testing.lua).
 --
 -- Framework-free on purpose (`NEW-40`): the point of this suite is that it
 -- catches load errors and argument-order regressions on a runner with no
