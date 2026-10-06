@@ -1,12 +1,11 @@
--- TESTS/run.lua — headless test runner for media.nvim.
+-- TESTS/run.lua — legacy headless runner of media.nvim, kept for its order.
 --
--- Run from the repo root (lib.nvim must be reachable as a sibling):
+-- The suite is run by testing.nvim now: `bash scripts/test.sh`. testing.nvim
+-- reads the spec list below (it never executes this file) to order the specs:
+-- config_spec first, smoke_spec last, see the comment above `specs`. The
+-- standalone invocation still works for a cross-check against the new runner:
 --   nvim -n -i NONE --headless -u NONE -c "set rtp+=." -c "set rtp+=../lib.nvim" \
 --        -c "luafile TESTS/run.lua" -c "qa!"
---
--- Loads every *_spec.lua listed below, runs it against the shared harness,
--- prints a per-spec result, and exits non-zero if any spec fails (`NEW-40`:
--- the runner fails loudly or it is not a gate).
 
 local dir = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") or "./"
 local H = dofile(dir .. "harness.lua")
