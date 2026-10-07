@@ -355,6 +355,7 @@ player (`ffplay` never reports its position) and not a decoder.
 | Key | Type | Default |
 | --- | --- | --- |
 | `keymaps.preset` | `boolean` | `true` — `false` binds nothing |
+| `keymaps` | `boolean` | `false` is shorthand for `{ preset = false }`, `true` for the defaults |
 | `keymaps.probe` | `string\|string[]\|false` | `<leader>Mp` |
 | `keymaps.frame` | `string\|string[]\|false` | `<leader>Mf` |
 | `keymaps.sheet` | `string\|string[]\|false` | `<leader>Ms` |

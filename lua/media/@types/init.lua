@@ -124,7 +124,7 @@
 ---@field progress_style? Media.Config.ProgressStyle
 ---@field player? string|string[]
 ---@field window? Media.Opts.Window
----@field keymaps? Media.Opts.Keymaps
+---@field keymaps? Media.Opts.Keymaps|boolean  # `false` binds nothing (same as `keymaps.preset = false`), `true` keeps the defaults
 
 ---@class Media.Opts.Bin
 ---@field ffmpeg? string

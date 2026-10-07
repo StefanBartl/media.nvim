@@ -21,10 +21,31 @@ local _cfg = nil
 ---@type Media.Config|nil
 local _default_snapshot = nil
 
+--- `keymaps = false` is the usual way to say "bind nothing", but `keymaps` is a table here, and
+--- `tbl_deep_extend` would let the boolean replace it -- the keymap setup then indexed `false`
+--- and raised (REL-20). The boolean is translated into the table form instead, the same way the
+--- other plugins of this family treat a switch group: `false` -> `{ preset = false }` (the
+--- existing "bind nothing" switch), `true` -> `{}` (the defaults). Anything that is neither a
+--- boolean nor a table is dropped, so it can only fall back to the defaults.
+---@param opts table  # the caller's table; never changed, a shallow copy is returned when needed
+---@return table
+local function normalize_keymaps(opts)
+  local value = opts.keymaps
+  if value == nil or type(value) == "table" then return opts end
+  local out = vim.tbl_extend("force", {}, opts)
+  if value == false then
+    out.keymaps = { preset = false }
+  else
+    out.keymaps = nil
+  end
+  return out
+end
+
 ---@param opts Media.Opts|nil
 ---@return nil
 function M.setup(opts)
-  _cfg = vim.tbl_deep_extend("force", vim.deepcopy(DEFAULTS), opts or {})
+  opts = type(opts) == "table" and normalize_keymaps(opts) or {}
+  _cfg = vim.tbl_deep_extend("force", vim.deepcopy(DEFAULTS), opts)
 end
 
 --- The effective configuration — the defaults when `setup()` never ran, which
