@@ -90,6 +90,7 @@
 ---@field dir string|nil
 
 ---@class Media.Config.Keymaps
+---@field enable? boolean
 ---@field preset boolean
 ---@field probe string|string[]|false|nil
 ---@field frame string|string[]|false|nil
@@ -173,6 +174,7 @@
 ---@field args? string[]
 
 ---@class Media.Opts.Keymaps
+---@field enable? boolean  # `false` binds nothing (the family-wide spelling, same as `preset = false`)
 ---@field preset? boolean
 ---@field probe? string|string[]|false
 ---@field frame? string|string[]|false

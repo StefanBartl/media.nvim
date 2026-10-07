@@ -51,6 +51,11 @@ return function(H)
   H.ok(ok, "setup({ keymaps = false }) must not raise: " .. tostring(err))
   H.ok(not mapped("<leader>Mp"), "keymaps = false binds nothing")
 
+  -- the family-wide spelling `keymaps.enable = false` binds nothing as well
+  ok, err = pcall(media.setup, { keymaps = { enable = false } })
+  H.ok(ok, "setup({ keymaps = { enable = false } }) must not raise: " .. tostring(err))
+  H.ok(not mapped("<leader>Mp"), "keymaps.enable = false binds nothing")
+
   ok, err = pcall(media.setup, { keymaps = true })
   H.ok(ok, "setup({ keymaps = true }) must not raise: " .. tostring(err))
   H.ok(mapped("<leader>Mp"), "keymaps = true still binds the defaults")
