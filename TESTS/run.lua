@@ -64,6 +64,8 @@ local specs = {
   "dispatcher_spec.lua",
   "health_spec.lua",
   "smoke_spec.lua",
+  -- After the smoke spec: it registers :Media itself, so it does not need to come before it.
+  "usrcmds_help_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`: a spec that opens a window
