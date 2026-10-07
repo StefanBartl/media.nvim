@@ -528,7 +528,14 @@ function M.register()
       {
         path = { "frame" },
         args = path_arg,
-        kv = { { key = "at", type = "STRING" }, { key = "width", type = "STRING" } },
+        kv = {
+          {
+            key = "at",
+            type = "STRING",
+            desc = "Seek position: seconds, a percentage like 10% or hh:mm:ss",
+          },
+          { key = "width", type = "STRING", desc = "Width of the still in pixels" },
+        },
         desc = "Poster frame  :Media frame [path] [at=10%] [width=800]",
         run = function(ctx)
           local path = require_path(ctx, "Media frame")
@@ -548,9 +555,9 @@ function M.register()
         path = { "sheet" },
         args = path_arg,
         kv = {
-          { key = "rows", type = "STRING" },
-          { key = "cols", type = "STRING" },
-          { key = "width", type = "STRING" },
+          { key = "rows", type = "STRING", desc = "Number of tile rows in the contact sheet" },
+          { key = "cols", type = "STRING", desc = "Number of tile columns in the contact sheet" },
+          { key = "width", type = "STRING", desc = "Width of the whole sheet in pixels" },
         },
         desc = "Contact sheet  :Media sheet [path] [rows=3] [cols=4] [width=1200]",
         run = function(ctx)
@@ -568,8 +575,11 @@ function M.register()
       {
         path = { "waveform" },
         args = path_arg,
-        kv = { { key = "width", type = "STRING" }, { key = "height", type = "STRING" } },
-        desc = "Waveform picture  :Media waveform [path] [width=1200] [height=300]",
+        kv = {
+          { key = "width", type = "STRING", desc = "Width of the waveform picture in pixels" },
+          { key = "height", type = "STRING", desc = "Height of the waveform picture in pixels" },
+        },
+        desc = "Waveform picture :Media waveform [path] [width=1200] [height=300]",
         run = function(ctx)
           local path = require_path(ctx, "Media waveform")
           if not path then return end
@@ -584,8 +594,11 @@ function M.register()
       {
         path = { "spectrogram" },
         args = path_arg,
-        kv = { { key = "width", type = "STRING" }, { key = "height", type = "STRING" } },
-        desc = "Spectrogram picture  :Media spectrogram [path] [width=1200] [height=300]",
+        kv = {
+          { key = "width", type = "STRING", desc = "Width of the spectrogram picture in pixels" },
+          { key = "height", type = "STRING", desc = "Height of the spectrogram picture in pixels" },
+        },
+        desc = "Spectrogram picture :Media spectrogram [path] [width=1200] [height=300]",
         run = function(ctx)
           local path = require_path(ctx, "Media spectrogram")
           if not path then return end
@@ -610,8 +623,15 @@ function M.register()
       {
         path = { "window" },
         args = path_arg,
-        kv = { { key = "at", type = "STRING" }, { key = "screen", type = "STRING" } },
-        desc = "Play in an mpv window  :Media window [path] [at=90] [screen=1]",
+        kv = {
+          {
+            key = "at",
+            type = "STRING",
+            desc = "Start position: seconds, a percentage like 50% or hh:mm:ss",
+          },
+          { key = "screen", type = "STRING", desc = "Number of the display to open the window on" },
+        },
+        desc = "Play in an mpv window :Media window [path] [at=90] [screen=1]",
         run = function(ctx)
           local path = require_path(ctx, "Media window")
           if not path then return end
@@ -626,7 +646,13 @@ function M.register()
       {
         path = { "dashboard" },
         args = { { name = "scope", type = "STRING", optional = true } },
-        kv = { { key = "path", type = "STRING" } },
+        kv = {
+          {
+            key = "path",
+            type = "STRING",
+            desc = "Directory to list instead of the cwd or cfile scope",
+          },
+        },
         desc = "One list across image/pdf/audio/video  :Media dashboard [cfile|cwd] [path=<dir>]",
         run = function(ctx)
           -- `path=<dir>` is a kv rather than a third positional word, so the
@@ -642,8 +668,14 @@ function M.register()
       {
         path = { "text" },
         args = path_arg,
-        kv = { { key = "out", type = "STRING" } },
-        desc = "Anything to text  :Media text [path] [out=buffer|sidecar|srt|vtt]",
+        kv = {
+          {
+            key = "out",
+            type = "STRING",
+            desc = "Where the text goes: buffer, sidecar, or srt/vtt for audio and video",
+          },
+        },
+        desc = "Anything to text :Media text [path] [out=buffer|sidecar|srt|vtt]",
         run = function(ctx)
           local path = require_path(ctx, "Media text")
           if not path then return end
@@ -655,10 +687,26 @@ function M.register()
         path = { "transcribe" },
         args = path_arg,
         kv = {
-          { key = "engine", type = "STRING" },
-          { key = "lang", type = "STRING" },
-          { key = "task", type = "STRING" },
-          { key = "out", type = "STRING" },
+          {
+            key = "engine",
+            type = "STRING",
+            desc = "Transcription engine to try first, instead of the configured one",
+          },
+          {
+            key = "lang",
+            type = "STRING",
+            desc = "Spoken language as ISO 639-1 code, e.g. en; skips detection",
+          },
+          {
+            key = "task",
+            type = "STRING",
+            desc = "transcribe keeps the language, translate yields English",
+          },
+          {
+            key = "out",
+            type = "STRING",
+            desc = "Where the transcript goes: buffer, sidecar, srt or vtt",
+          },
         },
         desc = "Speech to text  :Media transcribe [path] [engine=] [lang=] [task=transcribe|translate] [out=buffer|sidecar|srt|vtt]",
         run = function(ctx)
