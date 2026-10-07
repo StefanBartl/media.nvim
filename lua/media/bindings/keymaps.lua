@@ -77,7 +77,9 @@ end
 ---@param cfg Media.Config.Keymaps
 ---@return nil
 function M.setup(cfg)
-  if cfg.preset == false then return end
+  -- `enable = false` is the spelling the other plugins of the family use (lib.nvim
+  -- `normalize_switch_group`); `preset = false` is the older one and stays valid.
+  if cfg.preset == false or cfg.enable == false then return end
 
   local ok, keymap = pcall(require, "lib.nvim.bindings.keymap")
   if ok then
