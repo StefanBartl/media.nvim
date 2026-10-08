@@ -241,8 +241,10 @@ function M.run(action, path, opts)
     -- deliberately: from `:Media` there is no UI element to tie it to, so it
     -- lives until mpv or the editor exits.
     local at = opts and opts.at or nil
+    local screen = opts and opts.screen or nil
     local _, err = require("media").play_window(path, {
       at = (type(at) == "number" or type(at) == "string") and at or nil,
+      screen = type(screen) == "number" and screen or nil,
     })
     if err then say(err, vim.log.levels.ERROR) end
     return
@@ -481,6 +483,19 @@ local function positive_int(raw)
   return math.floor(n)
 end
 
+---@internal
+--- A `screen=` value: mpv's own display index, so a whole number from 0 up, or
+--- nil when it was absent or cannot be one. `tonumber` alone is not enough here:
+--- it accepts `inf`, `nan` and `-1`, and `player.args` formats the number with
+--- `%d`, which turns the first two into `--screen=-9223372036854775808`.
+---@param raw string|nil
+---@return integer|nil
+local function screen_index(raw)
+  local n = tonumber(raw)
+  if not n or n ~= n or n < 0 or n == math.huge then return nil end
+  return math.floor(n)
+end
+
 ---@return nil
 function M.register()
   local ok, composer = pcall(require, "lib.nvim.bindings.usercmd.composer")
@@ -640,7 +655,7 @@ function M.register()
           local kv = ctx.kv or {}
           M.run("window", path, {
             at = kv.at and (tonumber(kv.at) or kv.at) or nil,
-            screen = kv.screen and tonumber(kv.screen) or nil,
+            screen = screen_index(kv.screen),
           })
         end,
       },
