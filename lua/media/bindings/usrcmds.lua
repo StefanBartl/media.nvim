@@ -493,6 +493,8 @@ function M.register()
   end
 
   composer.register_type("MEDIA_PATH", {
+    -- The line the option float shows for the `[path]` of every route that takes one.
+    desc = "Media file (default: file under the cursor, else current buffer)",
     validate = function(raw)
       return true, raw, nil
     end,
@@ -645,7 +647,14 @@ function M.register()
 
       {
         path = { "dashboard" },
-        args = { { name = "scope", type = "STRING", optional = true } },
+        args = {
+          {
+            name = "scope",
+            type = "STRING",
+            optional = true,
+            desc = "Where to look: cwd (default) or cfile (the current buffer's folder)",
+          },
+        },
         kv = {
           {
             key = "path",
