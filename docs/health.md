@@ -23,6 +23,7 @@ describe a file but not show it.
 | `cache directory is writable: <dir>` | a file was created there and removed again |
 | `cache directory is not writable` | set `cache.dir` somewhere else, or fix the permissions |
 | `the cache directory could not be created` | the parent does not exist or is not writable |
+| `cache holds N file(s), X MB (limits: ...)` | what is in the cache now, and the configured age and size limits |
 
 This section exists because its failure is silent otherwise: a read-only cache
 directory produces *"no frame was written"* from a renderer that ran perfectly.

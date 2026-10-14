@@ -88,6 +88,8 @@
 ---@class Media.Config.Cache
 ---@field enabled boolean
 ---@field dir string|nil
+---@field max_age_days number|nil  # older files are removed; nil/0 = keep
+---@field max_mb number|nil        # oldest files go when larger; nil/0 = unlimited
 
 ---@class Media.Config.Keymaps
 ---@field enable? boolean
@@ -167,6 +169,8 @@
 ---@class Media.Opts.Cache
 ---@field enabled? boolean
 ---@field dir? string
+---@field max_age_days? number
+---@field max_mb? number
 
 ---@class Media.Opts.Window
 ---@field autofit? string

@@ -378,4 +378,235 @@ function M.clear()
   return removed
 end
 
+-- ─── bounding the cache ─────────────────────────────────────────────────────
+--
+-- The key makes an entry safe to keep, not cheap to keep: one hour of audio
+-- is a ~115 MB WAV, and an entry whose source changed is never read again and
+-- never removed. So the directory is trimmed once per session, in the
+-- background, by age and by total size (oldest first). The WAV stays a cache
+-- entry rather than a throw-away intermediate: a second run with another
+-- engine or language needs it again, and ffmpeg over an hour of audio costs
+-- more than the disk; when the size limit bites, the oldest WAV goes first
+-- like every other file.
+
+---A leftover `<out>.tmp-<pid>` younger than this may belong to a render of another Neovim.
+local ORPHAN_TMP_AGE = 3600
+
+---@class Media.Cache.File
+---@field path string
+---@field name string
+---@field size integer
+---@field mtime integer seconds
+---@field tmp boolean  # a `.tmp-<pid>` leftover
+
+---@class Media.Cache.Limits
+---@field max_age_days number|nil
+---@field max_mb number|nil
+
+---@param v any
+---@return number|nil
+local function positive(v)
+  if type(v) == "number" and v > 0 then return v end
+  return nil
+end
+
+---The configured limits; `nil` / `0` / anything not a positive number means unlimited.
+---@return Media.Cache.Limits
+function M.limits()
+  local cfg = require("media.config").get().cache or {}
+  return { max_age_days = positive(cfg.max_age_days), max_mb = positive(cfg.max_mb) }
+end
+
+---Which files to delete. Pure: no I/O, so the rule is assertable without a directory.
+---Foreign files never appear in `files`; the caller filters by `CACHED_EXTENSIONS`.
+---@param files Media.Cache.File[]
+---@param now integer seconds
+---@param limits Media.Cache.Limits
+---@param busy? table<string, true>  # output paths being rendered right now: never touched
+---@return Media.Cache.File[] doomed
+function M.plan_prune(files, now, limits, busy)
+  busy = busy or {}
+  local doomed, keep = {}, {}
+  local max_age = limits.max_age_days and limits.max_age_days * 86400
+  for _, f in ipairs(files) do
+    if f.tmp then
+      local base = f.path:gsub("%.tmp%-%d+.*$", "")
+      if not busy[base] and now - f.mtime > ORPHAN_TMP_AGE then doomed[#doomed + 1] = f end
+    elseif not busy[f.path] then
+      -- (an output being written right now is not ours to judge)
+      if max_age and now - f.mtime > max_age then
+        doomed[#doomed + 1] = f
+      else
+        keep[#keep + 1] = f
+      end
+    end
+  end
+  local max_bytes = limits.max_mb and limits.max_mb * 1048576
+  if max_bytes then
+    local total = 0
+    for _, f in ipairs(keep) do
+      total = total + f.size
+    end
+    if total > max_bytes then
+      table.sort(keep, function(a, b)
+        if a.mtime ~= b.mtime then return a.mtime < b.mtime end
+        return a.path < b.path
+      end)
+      for _, f in ipairs(keep) do
+        if total <= max_bytes then break end
+        doomed[#doomed + 1] = f
+        total = total - f.size
+      end
+    end
+  end
+  return doomed
+end
+
+---@param name string
+---@return boolean tmp
+---@return boolean ours
+local function classify(name)
+  local tmp = name:match("%.tmp%-%d+") ~= nil
+  local ext = name:match("%.([^.]+)$")
+  return tmp, tmp or (ext ~= nil and CACHED_EXTENSIONS[ext] == true)
+end
+
+---List the files of the cache directory this cache owns, without blocking the loop.
+---@param dir string
+---@param callback fun(files: Media.Cache.File[]): nil  # called from a libuv callback
+local function scan(dir, callback)
+  uv.fs_scandir(dir, function(err, handle)
+    if err or not handle then return callback({}) end
+    local names = {}
+    while true do
+      local name, kind = uv.fs_scandir_next(handle)
+      if not name then break end
+      local _, ours = classify(name)
+      if ours and (kind == "file" or kind == nil) then names[#names + 1] = name end
+    end
+    local files, pending = {}, #names
+    if pending == 0 then return callback(files) end
+    for _, name in ipairs(names) do
+      local path = dir .. "/" .. name
+      uv.fs_stat(path, function(_, st)
+        if st and st.type == "file" then
+          files[#files + 1] = {
+            path = path,
+            name = name,
+            size = st.size,
+            mtime = st.mtime and st.mtime.sec or 0,
+            tmp = (classify(name)),
+          }
+        end
+        pending = pending - 1
+        if pending == 0 then callback(files) end
+      end)
+    end
+  end)
+end
+
+---@class Media.Cache.PruneResult
+---@field skipped? "busy"|"unlimited"
+---@field removed integer
+---@field freed integer  # bytes
+---@field kept integer
+---@field bytes integer  # bytes left
+
+---Trim the cache by the configured limits (or `opts.limits`), oldest first.
+---
+---Does nothing while a render is running or queued, so nothing it is about to
+---read or rename can disappear; the caller may try again later.
+---@param opts? { limits?: Media.Cache.Limits, now?: integer }
+---@param callback? fun(result: Media.Cache.PruneResult): nil  # on the main loop
+---@return nil
+function M.prune(opts, callback)
+  opts = opts or {}
+  callback = callback or function() end
+  local limits = opts.limits or M.limits()
+  local empty = { removed = 0, freed = 0, kept = 0, bytes = 0 }
+  if not limits.max_age_days and not limits.max_mb then
+    return vim.schedule(function()
+      callback(vim.tbl_extend("force", empty, { skipped = "unlimited" }))
+    end)
+  end
+  local running_now, waiting_now = M.load()
+  if running_now > 0 or waiting_now > 0 then
+    return vim.schedule(function()
+      callback(vim.tbl_extend("force", empty, { skipped = "busy" }))
+    end)
+  end
+  local dir = M.dir()
+  local now = opts.now or os.time()
+  scan(dir, function(files)
+    local busy = {}
+    for out in pairs(inflight) do
+      busy[out] = true
+    end
+    local doomed = M.plan_prune(files, now, limits, busy)
+    local gone, removed, freed = {}, 0, 0
+    for _, f in ipairs(doomed) do
+      gone[f.path] = true
+      if uv.fs_unlink(f.path) then
+        removed = removed + 1
+        freed = freed + f.size
+      end
+    end
+    local kept, bytes = 0, 0
+    for _, f in ipairs(files) do
+      if not gone[f.path] and not f.tmp then
+        kept = kept + 1
+        bytes = bytes + f.size
+      end
+    end
+    vim.schedule(function()
+      callback({ removed = removed, freed = freed, kept = kept, bytes = bytes })
+    end)
+  end)
+end
+
+local prune_state = { requested = false }
+
+---Trim the cache once per session, shortly after startup, and only when nothing is rendering:
+---a busy queue is retried a minute later, a few times, then left for the next session.
+---@param delay_ms? integer  # default 5000
+---@return nil
+function M.prune_once(delay_ms)
+  if prune_state.requested then return end
+  local cfg = require("media.config").get().cache or {}
+  if cfg.enabled == false then return end
+  prune_state.requested = true
+  local tries = 0
+  local function attempt()
+    tries = tries + 1
+    M.prune(nil, function(result)
+      if result.skipped == "busy" and tries < 5 then vim.defer_fn(attempt, 60000) end
+    end)
+  end
+  vim.defer_fn(attempt, delay_ms or 5000)
+end
+
+---Number of cached files and their total size, for `:checkhealth`. Reads the directory
+---synchronously: a health check is allowed to wait.
+---@return integer files
+---@return integer bytes
+function M.stats()
+  local dir = M.dir()
+  local handle = uv.fs_scandir(dir)
+  local files, bytes = 0, 0
+  if not handle then return 0, 0 end
+  while true do
+    local name, kind = uv.fs_scandir_next(handle)
+    if not name then break end
+    local tmp, ours = classify(name)
+    if ours and not tmp and (kind == "file" or kind == nil) then
+      local st = uv.fs_stat(dir .. "/" .. name)
+      if st then
+        files = files + 1
+        bytes = bytes + st.size
+      end
+    end
+  end
+  return files, bytes
+end
+
 return M
