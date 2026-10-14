@@ -223,6 +223,14 @@ return {
     --- `nil` means `stdpath("cache")/media.nvim`.
     ---@type string|nil
     dir = nil,
+    --- Files older than this many days are removed (once per session, in the
+    --- background, never while a render runs). `nil` or `0` keeps them forever.
+    ---@type number|nil
+    max_age_days = 30,
+    --- When the cache is larger than this many MB the oldest files go first.
+    --- One hour of audio is a ~115 MB WAV. `nil` or `0` means no size limit.
+    ---@type number|nil
+    max_mb = 2048,
   },
 
   --- How many `ffmpeg` renders may run at once.

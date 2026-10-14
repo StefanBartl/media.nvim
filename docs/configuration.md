@@ -21,7 +21,7 @@ require("media").setup({
     normalize_timeout_ms = 120000,
     whisper_cpp = { model = nil },
   },
-  cache = { enabled = true, dir = nil },
+  cache = { enabled = true, dir = nil, max_age_days = 30, max_mb = 2048 },
   player = nil,
   window = { autofit = "80%x80%", ontop = true, args = {} },
   keymaps = {
@@ -257,10 +257,21 @@ downstream of this plugin, not a `task` value here.
 | --- | --- | --- |
 | `cache.enabled` | `boolean` | `true` |
 | `cache.dir` | `string\|nil` | `nil` → `stdpath("cache")/media.nvim` |
+| `cache.max_age_days` | `number\|nil` | `30` — older files are removed; `nil`/`0` keeps them |
+| `cache.max_mb` | `number\|nil` | `2048` — above this the oldest files go first; `nil`/`0` is unlimited |
 
 Rendered stills live on disk and outlive the session. The key carries the source
 file's mtime, so an entry is safe to keep forever and an edited file misses.
 `:Media cache clear` empties it.
+
+The cache is trimmed once per session, about five seconds after `setup()`, in the
+background and only while no render is running or queued (a busy queue is tried
+again a minute later, up to five times): files past `cache.max_age_days` go, then
+the oldest ones until the size is under `cache.max_mb`. Only the files this cache
+owns (`png`, `wav`, `json`, and `.tmp-<pid>` leftovers older than an hour) are
+touched; the age counts from when the file was written. The converted WAV (about
+115 MB per hour of audio) is a cache entry like the others, so a second run with
+another engine or language does not decode again.
 
 ## `player`
 

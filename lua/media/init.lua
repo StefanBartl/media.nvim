@@ -59,6 +59,7 @@ function M.setup(opts)
   require("media.config").setup(opts)
   require("media.bindings").setup()
   require("media.engines").load_all()
+  require("media.core.cache").prune_once()
 end
 
 --- Whether this plugin can do anything at all right now: both binaries found.

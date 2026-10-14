@@ -76,6 +76,23 @@ local function check_cache()
   fd:close()
   os.remove(probe_file)
   h_ok("cache directory is writable: " .. dir)
+
+  local cache = require("media.core.cache")
+  local ok_stats, files, bytes = pcall(cache.stats)
+  if ok_stats then
+    local limits = cache.limits()
+    local function limit(v, unit)
+      return v and (v .. " " .. unit) or "unlimited"
+    end
+    h_info(
+      ("cache holds %d file(s), %.1f MB (limits: age %s, size %s)"):format(
+        files,
+        bytes / 1048576,
+        limit(limits.max_age_days, "days"),
+        limit(limits.max_mb, "MB")
+      )
+    )
+  end
 end
 
 ---@internal
