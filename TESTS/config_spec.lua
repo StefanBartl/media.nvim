@@ -35,6 +35,20 @@ return function(H)
   H.eq(cfg4.timeout_ms, 999, "the new setup() call's own option")
   H.eq(cfg4.frame.width, DEFAULTS.frame.width, "the previous setup() call's option is gone")
 
+  -- ── a wrongly typed option is reported and dropped, the default applies ──
+  local clean, problems = config.validate({
+    timeout_ms = "slow",
+    frame = { at = true, width = 5 },
+    window = { args = {} },
+  })
+  H.eq(#problems, 2, "two wrongly typed options are reported")
+  H.eq(clean.timeout_ms, nil, "the invalid timeout_ms is dropped")
+  H.eq(clean.frame.at, nil, "the invalid frame.at is dropped")
+  H.eq(clean.frame.width, 5, "a valid sibling is kept")
+  local same, none = config.validate({ frame = { at = 3 } })
+  H.eq(#none, 0, "a number is a valid frame.at")
+  H.eq(same.frame.at, 3, "a valid table is returned unchanged")
+
   -- Leave config at the defaults for whichever spec runs next — this module
   -- has no reset(); a bare setup({}) is the equivalent every other spec that
   -- calls setup() already uses for the same cleanup.
