@@ -41,10 +41,90 @@ local function normalize_keymaps(opts)
   return out
 end
 
+--- The accepted type(s) of the scalar options, by dotted path (`|` separates alternatives). Only
+--- keys with a fixed type are listed; keys that take several shapes (`player`, `keymaps.*`, ...)
+--- are left alone on purpose.
+---@type table<string, string>
+local TYPES = {
+  timeout_ms = "number",
+  render_concurrency = "number",
+  progress_style = "string",
+  ["frame.at"] = "number|string",
+  ["frame.width"] = "number",
+  ["frames.fps"] = "number",
+  ["frames.count"] = "number",
+  ["frames.width"] = "number",
+  ["sheet.rows"] = "number",
+  ["sheet.cols"] = "number",
+  ["sheet.width"] = "number",
+  ["sheet.margin"] = "number",
+  ["sheet.timeout_ms"] = "number",
+  ["waveform.width"] = "number",
+  ["waveform.height"] = "number",
+  ["waveform.colors"] = "string",
+  ["waveform.timeout_ms"] = "number",
+  ["transcribe.engine"] = "string",
+  ["transcribe.fallback"] = "table",
+  ["transcribe.task"] = "string",
+  ["transcribe.output"] = "string",
+  ["transcribe.cache"] = "boolean",
+  ["transcribe.timeout_ms"] = "number",
+  ["transcribe.normalize_timeout_ms"] = "number",
+  ["cache.enabled"] = "boolean",
+  ["hub.exclude"] = "table",
+  ["hub.max_entries"] = "number",
+  ["window.autofit"] = "string",
+  ["window.ontop"] = "boolean",
+  ["window.args"] = "table",
+}
+
+--- Check the typed options of a user table. Nothing is raised: `setup()` runs at startup, where
+--- an error would take the whole config with it. A wrongly typed value is reported and dropped,
+--- so the default applies instead of a value the plugin cannot use.
+---@param opts table  # the caller's table; never changed
+---@return table clean  # `opts` without the offending keys (`opts` itself when all are fine)
+---@return string[] problems
+function M.validate(opts)
+  local problems, clean = {}, nil
+  for path, want in pairs(TYPES) do
+    local parts = vim.split(path, ".", { plain = true })
+    local parent = opts
+    for i = 1, #parts - 1 do
+      parent = type(parent) == "table" and parent[parts[i]] or nil
+    end
+    local leaf = parts[#parts]
+    local value = type(parent) == "table" and parent[leaf] or nil
+    if
+      value ~= nil and not vim.list_contains(vim.split(want, "|", { plain = true }), type(value))
+    then
+      problems[#problems + 1] = ("%s must be %s, got %s"):format(
+        path,
+        (want:gsub("|", " or ")),
+        type(value)
+      )
+      clean = clean or vim.deepcopy(opts)
+      local node = clean
+      for i = 1, #parts - 1 do
+        node = node[parts[i]]
+      end
+      node[leaf] = nil
+    end
+  end
+  table.sort(problems)
+  return clean or opts, problems
+end
+
 ---@param opts Media.Opts|nil
 ---@return nil
 function M.setup(opts)
   opts = type(opts) == "table" and normalize_keymaps(opts) or {}
+  local problems
+  opts, problems = M.validate(opts)
+  if #problems > 0 then
+    require("media.util.notify").warn(
+      "ignoring invalid option(s): " .. table.concat(problems, "; ")
+    )
+  end
   _cfg = vim.tbl_deep_extend("force", vim.deepcopy(DEFAULTS), opts)
 end
 
