@@ -35,5 +35,16 @@ return {
     },
   },
   -- gated: a failed conformance check makes `scripts/test.sh conformance` exit 1 (docs/CONFORMANCE.md of testing.nvim)
-  conformance = { gate = true },
+  conformance = {
+    gate = true,
+    waivers = {
+      {
+        check = "K6",
+        level = "error",
+        text = "not found",
+        reason = "ffmpeg and ffprobe are external tools that a CI runner may not have; :checkhealth reports them as errors",
+        expires = "2027-04-14",
+      },
+    },
+  },
 }
