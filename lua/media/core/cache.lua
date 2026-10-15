@@ -430,8 +430,9 @@ function M.plan_prune(files, now, limits, busy)
   local max_age = limits.max_age_days and limits.max_age_days * 86400
   for _, f in ipairs(files) do
     if f.tmp then
-      local base = f.path:gsub("%.tmp%-%d+.*$", "")
-      if not busy[base] and now - f.mtime > ORPHAN_TMP_AGE then doomed[#doomed + 1] = f end
+      local base, ext = f.path:match("^(.*)%.tmp%-%d+%.([^./\\]+)$")
+      local out = base and (base .. "." .. ext) or f.path:match("^(.*)%.tmp%-%d+$")
+      if not (out and busy[out]) and now - f.mtime > ORPHAN_TMP_AGE then doomed[#doomed + 1] = f end
     elseif not busy[f.path] then
       -- (an output being written right now is not ours to judge)
       if max_age and now - f.mtime > max_age then
@@ -466,6 +467,11 @@ end
 ---@return boolean tmp
 ---@return boolean ours
 local function classify(name)
+  -- Every file this cache writes is named after a sha256 key (`M.key`), a frame run adds `-NNN`: a name
+  -- that does not start with 64 hex digits is somebody else's file (a custom `cache.dir` may hold the
+  -- user's own png or json), and the automatic trim must never touch it.
+  local hex = name:match("^(%x+)")
+  if not hex or #hex < 64 then return false, false end
   local tmp = name:match("%.tmp%-%d+") ~= nil
   local ext = name:match("%.([^.]+)$")
   return tmp, tmp or (ext ~= nil and CACHED_EXTENSIONS[ext] == true)
@@ -545,8 +551,8 @@ function M.prune(opts, callback)
     local doomed = M.plan_prune(files, now, limits, busy)
     local gone, removed, freed = {}, 0, 0
     for _, f in ipairs(doomed) do
-      gone[f.path] = true
       if uv.fs_unlink(f.path) then
+        gone[f.path] = true
         removed = removed + 1
         freed = freed + f.size
       end
