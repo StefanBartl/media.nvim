@@ -248,6 +248,28 @@ return function(H)
   local missing = prune({ limits = { max_age_days = 1 } })
   H.eq(missing.removed, 0, "an empty cache directory prunes to nothing")
 
+  -- a hit renews the file, so the trim by age counts from the last use (review of a232d17)
+  config.setup({ cache = { dir = dir } })
+  local worn = dir .. "/" .. K("worn.png")
+  local recent = dir .. "/" .. K("recent.png")
+  put(K("worn.png"), 10, 29)
+  put(K("recent.png"), 10, 0.5)
+  local recent_before = uv.fs_stat(recent).mtime.sec
+  local seen = 0
+  for _, path in ipairs({ worn, recent }) do
+    cache.ensure(path, function() end, function()
+      seen = seen + 1
+    end)
+  end
+  vim.wait(2000, function()
+    return seen == 2
+  end, 5)
+  H.eq(seen, 2, "both hits answered")
+  H.ok(uv.fs_stat(worn).mtime.sec > os.time() - 60, "a hit on a day-old file renews it")
+  H.eq(uv.fs_stat(recent).mtime.sec, recent_before, "a hit on a fresh file writes nothing")
+  local later = prune({ limits = { max_age_days = 20 } })
+  H.eq(later.removed, 0, "so the worn file survives an age trim that would have taken it")
+
   config.setup({})
   vim.fn.delete(dir, "rf")
 end

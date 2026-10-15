@@ -270,7 +270,7 @@ again a minute later, up to five times): files past `cache.max_age_days` go, the
 the oldest ones until the size is under `cache.max_mb`. Only the files this cache
 owns (named after their sha256 key: `<64 hex digits>[-NNN].png|wav|json`, and `.tmp-<pid>`
 leftovers older than an hour) are touched, so a `cache.dir` that also holds your own files
-loses none of them; the age counts from when the file was written. The converted WAV (about
+loses none of them; the age counts from the last use (a cache hit renews the file once a day). The converted WAV (about
 115 MB per hour of audio) is a cache entry like the others, so a second run with
 another engine or language does not decode again.
 
