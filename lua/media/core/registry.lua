@@ -27,6 +27,21 @@ function M.register(engine)
   _engines[engine.id] = engine
 end
 
+---Remove an engine. Idempotent: an id that is not registered is not an error.
+---@param id string
+---@return boolean removed  whether something was registered under `id`
+function M.unregister(id)
+  if _engines[id] == nil then return false end
+  _engines[id] = nil
+  for i = 1, #_order do
+    if _order[i] == id then
+      table.remove(_order, i)
+      break
+    end
+  end
+  return true
+end
+
 ---@param id string
 ---@return Media.Engine|nil
 function M.get(id)

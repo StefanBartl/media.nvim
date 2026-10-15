@@ -18,33 +18,48 @@ return function(H)
     end,
   }
 
-  H.falsy(registry.has(fake.id), "not registered yet")
-  registry.register(fake)
-  H.ok(registry.has(fake.id), "registered")
-  H.eq(registry.get(fake.id), fake, "get() returns the same table registered")
+  -- The fake lives in the process-wide registry: it is removed again whatever the checks below do,
+  -- so a failure in the middle cannot leave it behind for the specs that run after this one.
+  local body_ok, body_err = pcall(function()
+    H.falsy(registry.has(fake.id), "not registered yet")
+    registry.register(fake)
+    H.ok(registry.has(fake.id), "registered")
+    H.eq(registry.get(fake.id), fake, "get() returns the same table registered")
 
-  -- Registering the same id again does not duplicate it in `ids()`/`all()`.
-  registry.register(fake)
-  local count = 0
+    -- Registering the same id again does not duplicate it in `ids()`/`all()`.
+    registry.register(fake)
+    local count = 0
+    for _, id in ipairs(registry.ids()) do
+      if id == fake.id then count = count + 1 end
+    end
+    H.eq(count, 1, "re-registering the same id is idempotent, not a duplicate")
+
+    local found = false
+    for _, engine in ipairs(registry.all()) do
+      if engine.id == fake.id then found = true end
+    end
+    H.ok(found, "all() includes it")
+
+    -- ── invalid registrations raise ──────────────────────────────────────
+    local ok1 =
+      pcall(registry.register, { id = "", available = function() end, transcribe = function() end })
+    H.falsy(ok1, "an empty id is rejected")
+
+    local ok2 = pcall(registry.register, { id = "x", transcribe = function() end })
+    H.falsy(ok2, "a missing available() is rejected")
+
+    local ok3 = pcall(registry.register, { id = "x", available = function() end })
+    H.falsy(ok3, "a missing transcribe() is rejected")
+  end)
+
+  -- ── unregister ───────────────────────────────────────────────────────
+  H.ok(registry.unregister(fake.id), "unregister() reports that it removed the engine")
+  H.falsy(registry.has(fake.id), "the engine is gone")
+  H.eq(registry.get(fake.id), nil, "get() no longer finds it")
   for _, id in ipairs(registry.ids()) do
-    if id == fake.id then count = count + 1 end
+    H.ok(id ~= fake.id, "ids() no longer lists it")
   end
-  H.eq(count, 1, "re-registering the same id is idempotent, not a duplicate")
-
-  local found = false
-  for _, engine in ipairs(registry.all()) do
-    if engine.id == fake.id then found = true end
-  end
-  H.ok(found, "all() includes it")
-
-  -- ── invalid registrations raise ──────────────────────────────────────
-  local ok1 =
-    pcall(registry.register, { id = "", available = function() end, transcribe = function() end })
-  H.falsy(ok1, "an empty id is rejected")
-
-  local ok2 = pcall(registry.register, { id = "x", transcribe = function() end })
-  H.falsy(ok2, "a missing available() is rejected")
-
-  local ok3 = pcall(registry.register, { id = "x", available = function() end })
-  H.falsy(ok3, "a missing transcribe() is rejected")
+  H.falsy(registry.unregister(fake.id), "unregistering twice is not an error and reports false")
+  H.falsy(registry.unregister("__never_registered"), "an unknown id reports false")
+  assert(body_ok, body_err)
 end
