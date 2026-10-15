@@ -7,68 +7,81 @@ return function(H)
   local resolver = require("media.core.resolver")
   local config = require("media.config")
 
-  -- ── build_chain ───────────────────────────────────────────────────────
-  config.setup({ transcribe = { engine = "__resolver_spec_default", fallback = { "a", "b" } } })
-  H.eq_list(
-    resolver.build_chain(nil),
-    { "__resolver_spec_default", "a", "b" },
-    "no explicit request: the configured default, then the fallback chain"
-  )
-  H.eq_list(
-    resolver.build_chain("explicit"),
-    { "explicit", "a", "b" },
-    "an explicit request replaces only the first slot"
-  )
+  local fake_ids = { "__resolver_spec_unavailable", "__resolver_spec_available" }
 
-  config.setup({
-    transcribe = { engine = "dup", fallback = { "dup", "b" } },
-  })
-  H.eq_list(
-    resolver.build_chain(nil),
-    { "dup", "b" },
-    "a fallback entry equal to the first slot is not repeated"
-  )
+  -- The fakes live in the process-wide registry: they are removed again whatever the checks below
+  -- do, so a failure in the middle cannot leave them behind for the specs that run after this one.
+  local body_ok, body_err = pcall(function()
+    -- ── build_chain ───────────────────────────────────────────────────────
+    config.setup({ transcribe = { engine = "__resolver_spec_default", fallback = { "a", "b" } } })
+    H.eq_list(
+      resolver.build_chain(nil),
+      { "__resolver_spec_default", "a", "b" },
+      "no explicit request: the configured default, then the fallback chain"
+    )
+    H.eq_list(
+      resolver.build_chain("explicit"),
+      { "explicit", "a", "b" },
+      "an explicit request replaces only the first slot"
+    )
 
-  -- ── resolve: first available wins ────────────────────────────────────
-  local unavailable = {
-    id = "__resolver_spec_unavailable",
-    available = function()
-      return false
-    end,
-    transcribe = function() end,
-  }
-  local available = {
-    id = "__resolver_spec_available",
-    available = function()
-      return true
-    end,
-    transcribe = function() end,
-  }
-  registry.register(unavailable)
-  registry.register(available)
+    config.setup({
+      transcribe = { engine = "dup", fallback = { "dup", "b" } },
+    })
+    H.eq_list(
+      resolver.build_chain(nil),
+      { "dup", "b" },
+      "a fallback entry equal to the first slot is not repeated"
+    )
 
-  config.setup({
-    transcribe = {
-      engine = unavailable.id,
-      fallback = { available.id },
-    },
-  })
-  local resolved, err = resolver.resolve(nil)
-  H.eq(resolved, available, "the unavailable default is skipped for the available fallback")
-  H.eq(err, nil, "no error once something resolved")
+    -- ── resolve: first available wins ────────────────────────────────────
+    local unavailable = {
+      id = "__resolver_spec_unavailable",
+      available = function()
+        return false
+      end,
+      transcribe = function() end,
+    }
+    local available = {
+      id = "__resolver_spec_available",
+      available = function()
+        return true
+      end,
+      transcribe = function() end,
+    }
+    registry.register(unavailable)
+    registry.register(available)
 
-  -- ── resolve: nothing available reports the whole chain it tried ──────
-  config.setup({ transcribe = { engine = unavailable.id, fallback = {} } })
-  local none, none_err = resolver.resolve(nil)
-  H.eq(none, nil, "no engine resolves")
-  H.match(none_err, unavailable.id, "the error names what was tried")
+    config.setup({
+      transcribe = {
+        engine = unavailable.id,
+        fallback = { available.id },
+      },
+    })
+    local resolved, err = resolver.resolve(nil)
+    H.eq(resolved, available, "the unavailable default is skipped for the available fallback")
+    H.eq(err, nil, "no error once something resolved")
 
-  -- ── resolve: an unregistered id in the chain is skipped, not fatal ───
-  config.setup({ transcribe = { engine = "__does_not_exist", fallback = { available.id } } })
-  local skipped = resolver.resolve(nil)
-  H.eq(skipped, available, "an id with nothing registered for it is passed over")
+    -- ── resolve: nothing available reports the whole chain it tried ──────
+    config.setup({ transcribe = { engine = unavailable.id, fallback = {} } })
+    local none, none_err = resolver.resolve(nil)
+    H.eq(none, nil, "no engine resolves")
+    H.match(none_err, unavailable.id, "the error names what was tried")
 
-  -- Leave global config as the tests found it — later specs must not see
-  -- this spec's fake engine ids.
+    -- ── resolve: an unregistered id in the chain is skipped, not fatal ───
+    config.setup({ transcribe = { engine = "__does_not_exist", fallback = { available.id } } })
+    local skipped = resolver.resolve(nil)
+    H.eq(skipped, available, "an id with nothing registered for it is passed over")
+  end)
+
+  -- Leave global config and registry as the tests found them — later specs must not see
+  -- this spec's fake engines.
   config.setup({})
+  for _, id in ipairs(fake_ids) do
+    registry.unregister(id)
+  end
+  for _, id in ipairs(registry.ids()) do
+    H.falsy(id:sub(1, 2) == "__", "no fake engine is left in the registry: " .. id)
+  end
+  assert(body_ok, body_err)
 end
