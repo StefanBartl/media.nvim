@@ -190,19 +190,15 @@ return function(H)
 
   local res = prune({ limits = { max_age_days = 30 } })
   H.eq(res.removed, 4, "old png/json/wav and the stale tmp file")
-  same(
-    listing(),
-    {
-      K("fresh.png"),
-      K("young.png.tmp-4243"),
-      "notes",
-      "photo.png",
-      "stranger.txt",
-      "subdir",
-      "user.json",
-    },
-    "strangers, directories and fresh files stay"
-  )
+  same(listing(), {
+    K("fresh.png"),
+    K("young.png.tmp-4243"),
+    "notes",
+    "photo.png",
+    "stranger.txt",
+    "subdir",
+    "user.json",
+  }, "strangers, directories and fresh files stay")
   H.eq(res.kept, 1, "one cache file kept")
   H.eq(res.bytes, 100, "its size")
   H.eq(res.freed, 310, "bytes freed")
@@ -213,20 +209,16 @@ return function(H)
   put(K("c.png"), 1000, 2)
   local sized = prune({ limits = { max_mb = 2000 / MB } })
   H.eq(sized.removed, 2, "two of the three big ones go to get under 2000 bytes (fresh.png is 100)")
-  same(
-    listing(),
-    {
-      K("c.png"),
-      K("fresh.png"),
-      K("young.png.tmp-4243"),
-      "notes",
-      "photo.png",
-      "stranger.txt",
-      "subdir",
-      "user.json",
-    },
-    "the oldest went first"
-  )
+  same(listing(), {
+    K("c.png"),
+    K("fresh.png"),
+    K("young.png.tmp-4243"),
+    "notes",
+    "photo.png",
+    "stranger.txt",
+    "subdir",
+    "user.json",
+  }, "the oldest went first")
 
   -- not while a render runs
   local finish
