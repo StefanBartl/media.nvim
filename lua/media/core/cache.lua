@@ -46,6 +46,9 @@
 
 local M = {}
 
+---A cache hit on a file older than this (seconds) renews its modification time.
+local TOUCH_AFTER = 86400
+
 local uv = vim.uv or vim.loop
 
 ---@return string
@@ -292,7 +295,12 @@ function M.ensure(out, render, callback, opts)
     cancel = function() end,
   }
 
-  if uv.fs_stat(out) then
+  local hit = uv.fs_stat(out)
+  if hit then
+    -- A hit keeps the file alive: the trim by age counts from the last use, so a still-used file is not
+    -- thrown out at day 30. Touched at most once a day (one syscall, never on every hover).
+    local now = os.time()
+    if hit.mtime and hit.mtime.sec < now - TOUCH_AFTER then pcall(uv.fs_utime, out, now, now) end
     vim.schedule(function()
       callback(out, nil)
     end)
