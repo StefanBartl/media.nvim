@@ -33,8 +33,16 @@ local function normalize_keymaps(opts)
   local value = opts.keymaps
   if value == nil or type(value) == "table" then return opts end
   local out = vim.tbl_extend("force", {}, opts)
-  -- the shared helper owns the shape; `preset` is this plugin's older spelling of the switch key
-  out.keymaps = require("lib.nvim.normalize").normalize_switch_group(value, "preset")
+  -- the shared helper owns the shape; `preset` is this plugin's older spelling of the switch key.
+  -- lib.nvim is a soft dependency: without it (or with a version lacking the helper) setup() must still not raise.
+  local loaded, normalize = pcall(require, "lib.nvim.normalize")
+  if loaded and type(normalize.normalize_switch_group) == "function" then
+    out.keymaps = normalize.normalize_switch_group(value, "preset")
+  elseif value == false then
+    out.keymaps = { preset = false }
+  else
+    out.keymaps = nil
+  end
   return out
 end
 

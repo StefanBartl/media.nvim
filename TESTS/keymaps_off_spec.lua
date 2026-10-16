@@ -42,6 +42,31 @@ return function(H)
     "a value that is neither boolean nor table falls back to the defaults"
   )
 
+  -- lib.nvim is a soft dependency: without its helper the same spellings still work
+  do
+    local saved_loaded = package.loaded["lib.nvim.normalize"]
+    local saved_preload = package.preload["lib.nvim.normalize"]
+    package.loaded["lib.nvim.normalize"] = nil
+    package.preload["lib.nvim.normalize"] = function()
+      error("lib.nvim.normalize hidden for this test")
+    end
+    local no_lib_ok, no_lib_err = pcall(function()
+      config.setup({ keymaps = false })
+      H.eq(config.get().keymaps.preset, false, "no lib.nvim: keymaps = false is preset = false")
+      config.setup({ keymaps = true })
+      H.eq(config.get().keymaps.preset, true, "no lib.nvim: keymaps = true keeps the defaults")
+      config.setup({ keymaps = "nonsense" })
+      H.eq(
+        config.get().keymaps.preset,
+        true,
+        "no lib.nvim: a non-switch value falls back to the defaults"
+      )
+    end)
+    package.preload["lib.nvim.normalize"] = saved_preload
+    package.loaded["lib.nvim.normalize"] = saved_loaded
+    H.ok(no_lib_ok, "setup must not raise without lib.nvim: " .. tostring(no_lib_err))
+  end
+
   config.setup({ keymaps = { probe = "<leader>Xp" } })
   H.eq(config.get().keymaps.probe, "<leader>Xp", "the table form still merges")
   H.eq(config.get().keymaps.frame, "<leader>Mf", "... over the defaults")
