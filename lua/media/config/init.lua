@@ -33,11 +33,8 @@ local function normalize_keymaps(opts)
   local value = opts.keymaps
   if value == nil or type(value) == "table" then return opts end
   local out = vim.tbl_extend("force", {}, opts)
-  if value == false then
-    out.keymaps = { preset = false }
-  else
-    out.keymaps = nil
-  end
+  -- the shared helper owns the shape; `preset` is this plugin's older spelling of the switch key
+  out.keymaps = require("lib.nvim.normalize").normalize_switch_group(value, "preset")
   return out
 end
 
