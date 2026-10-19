@@ -220,7 +220,7 @@ end
 --- is `frame` with nobody listening.
 ---
 --- The playback path has done this for its own windows since
---- `hover.nvim@9442f96` — a decode plus its sampling was measured at ~0.6 s,
+--- `hover.nvim@dff5741` — a decode plus its sampling was measured at ~0.6 s,
 --- so asking at the last frame arrives late every time. This is the same idea
 --- one level down, for the still-stepping path that never got it.
 ---
