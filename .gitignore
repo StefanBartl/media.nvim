@@ -1,7 +1,7 @@
 # Local dependency checkouts used by the test runner.
 .deps/
 
-# Generated documentation map (documentation.nvim / :DocMap).
+# Generated documentation map (docmap.nvim / :DocMap).
 docs/map/
 
 # Editor and OS noise.
