@@ -121,7 +121,33 @@ return function(H)
   for _, p in ipairs(probed) do
     H.falsy(p:find("SomethingElse", 1, true), "other Store packages are not: " .. p)
   end
-  H.match(probed[#probed], "/%.local/bin/whisper$", "pipx / pip --user on Unix comes last")
+  H.ok(
+    H.index_of(probed, (vim.uv.os_homedir() or "") .. "/.local/bin/whisper"),
+    "pipx / pip --user on Unix is probed"
+  )
+
+  -- ── an active venv / conda environment comes first; a conda base last ─
+  local saved_venv, saved_conda = vim.env.VIRTUAL_ENV, vim.env.CONDA_PREFIX
+  vim.env.VIRTUAL_ENV = "E:/__bin_spec__/venv"
+  vim.env.CONDA_PREFIX = "E:/__bin_spec__/conda-env"
+  local envs = bin.python_scripts("whisper")
+  vim.env.VIRTUAL_ENV, vim.env.CONDA_PREFIX = saved_venv, saved_conda
+  H.eq(
+    envs[1],
+    "E:/__bin_spec__/venv/Scripts/whisper.exe",
+    "the active venv is tried first (Windows layout)"
+  )
+  H.eq(envs[2], "E:/__bin_spec__/venv/bin/whisper", "and its Unix layout")
+  H.eq(
+    envs[3],
+    "E:/__bin_spec__/conda-env/Scripts/whisper.exe",
+    "then the active conda environment"
+  )
+  H.match(envs[#envs], "/miniforge3/bin/whisper$", "a never-activated conda base comes last")
+  H.ok(
+    H.index_of(envs, (vim.uv.os_homedir() or "") .. "/miniconda3/Scripts/whisper.exe"),
+    "miniconda's base is among them"
+  )
 
   -- Leave no trace for later specs/consumers: real, uncached lookups again.
   bin.reset("ffmpeg")

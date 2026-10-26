@@ -55,10 +55,12 @@ the summary.
 An explicit path, for the case where the binary is installed but not on PATH.
 The plugin probes winget's and scoop's shim directories, chocolatey's `bin`,
 `C:/ffmpeg/bin`, `/opt/homebrew/bin` and `/usr/local/bin` by itself — and, for
-openai-whisper's `whisper`, Python's own `Scripts` directories
+openai-whisper's `whisper`, the active venv (`$VIRTUAL_ENV`) or conda
+environment (`$CONDA_PREFIX`) first, then Python's own `Scripts` directories
 (`%LOCALAPPDATA%/Programs/Python/Python3xx`, `%APPDATA%/Python/Python3xx`,
-newest first) and `~/.local/bin` (pipx). This is the escape hatch for
-everything it does not guess. `mpv` is looked up the same way
+newest first, and the Microsoft Store Python's), `~/.local/bin` (pipx), and a
+conda base that was never activated (`~/miniconda3`, `~/anaconda3`,
+`~/miniforge3`). This is the escape hatch for everything it does not guess. `mpv` is looked up the same way
 as `ffmpeg`/`ffprobe` and is optional: it is only used for `media.audio`, and
 its absence just means a played run stays silent.
 

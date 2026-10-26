@@ -76,10 +76,12 @@ local function subdirs(root)
 end
 
 --- Where pip and pipx put a console entry point, for the names in
---- `PYTHON_TOOLS`: the per-user python.org install
+--- `PYTHON_TOOLS`: an active venv (`$VIRTUAL_ENV`) or conda environment
+--- (`$CONDA_PREFIX`) first, then the per-user python.org install
 --- (`%LOCALAPPDATA%/Programs/Python/Python3xx/Scripts`), `pip install --user`
 --- (`%APPDATA%/Python/Python3xx/Scripts`), and pipx / `pip --user` on Unix
---- (`~/.local/bin`). The same PATH problem as winget's: the installer adds the
+--- (`~/.local/bin`), and last a never-activated conda base (`~/miniconda3`,
+--- `~/anaconda3`, `~/miniforge3`). The same PATH problem as winget's: the installer adds the
 --- directory to the user PATH, and an editor started before that never sees it.
 ---
 --- Public for the reason `frame.args` is: which paths get probed is the whole
@@ -90,6 +92,21 @@ function M.python_scripts(name)
   if not PYTHON_TOOLS[name] then return {} end
   local home = uv.os_homedir() or ""
   local out = {}
+
+  -- An environment prefix keeps its scripts in `Scripts/` on Windows and in
+  -- `bin/` everywhere else; both are probed, a missing one costs one stat.
+  ---@param prefix string|nil
+  local function add_env(prefix)
+    if type(prefix) ~= "string" or prefix == "" then return end
+    out[#out + 1] = prefix .. "/Scripts/" .. name .. ".exe"
+    out[#out + 1] = prefix .. "/bin/" .. name
+  end
+
+  -- First the environment the editor was started in: an active venv or conda
+  -- environment is the one the user means, over any global install.
+  add_env(os.getenv("VIRTUAL_ENV"))
+  add_env(os.getenv("CONDA_PREFIX"))
+
   local roots = {
     (os.getenv("LOCALAPPDATA") or "") .. "/Programs/Python",
     (os.getenv("APPDATA") or "") .. "/Python",
@@ -116,6 +133,11 @@ function M.python_scripts(name)
   end
   out[#out + 1] = home .. "/.local/bin/" .. name .. ".exe"
   out[#out + 1] = home .. "/.local/bin/" .. name
+  -- A conda base install that was never activated for this process: the
+  -- three installers' default per-user prefixes.
+  for _, base in ipairs({ "miniconda3", "anaconda3", "miniforge3" }) do
+    add_env(home .. "/" .. base)
+  end
   return out
 end
 
