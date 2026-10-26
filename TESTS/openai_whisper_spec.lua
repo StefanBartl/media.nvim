@@ -154,11 +154,18 @@ return function(H)
     H.eq_list(cli.conda_path(prefix .. "/bin/whisper", false), { np .. "/bin" }, "Unix: bin")
     H.eq(#cli.conda_path("E:/plain/Scripts/whisper.exe", true), 0, "no conda-meta: nothing added")
     H.eq(#cli.conda_path("whisper", true), 0, "a bare command: nothing added")
-    local env = cli.child_env(false, in_conda)
+    -- The platform's own entry: `Library/bin` on Windows, `bin` elsewhere
+    -- (found by CI: the Windows-only expectation failed on Linux and macOS).
+    local windows = vim.fn.has("win32") == 1
+    local in_env = windows and in_conda or (prefix .. "/bin/whisper")
+    if not windows then vim.fn.mkdir(prefix .. "/bin", "p") end
+    local env = cli.child_env(false, in_env)
+    local expected = windows and (np .. "/Library/bin") or (np .. "/bin")
     H.ok(
-      env.PATH and env.PATH:find(np .. "/Library/bin", 1, true),
-      "child_env puts it in front of the child's PATH"
+      env.PATH and vim.startswith(env.PATH, windows and np or expected),
+      "child_env puts the environment in front of the child's PATH: " .. tostring(env.PATH)
     )
+    H.ok(env.PATH:find(expected, 1, true), "including " .. expected)
     vim.fn.delete(prefix, "rf")
   end
 
