@@ -36,4 +36,17 @@ return function(H)
   H.ok(ok, "nor is something that is not a process at all")
   ok = pcall(proc.stop, {})
   H.ok(ok, "nor a table without a pid or a kill")
+
+  -- ── exit_message: Windows "could not run at all" codes say what they are ─
+  -- Measured 2026-10-26: a whisper-cli that loaded the wrong libstdc++ DLL
+  -- exited with 3221225785 and printed nothing.
+  H.match(
+    proc.exit_message("whisper-cli", 3221225785),
+    "^whisper%-cli exited with 3221225785: a DLL it loaded is the wrong version",
+    "the code, then what it means"
+  )
+  H.match(proc.exit_message("ffmpeg", 3221225781), "DLL it needs was not found", "")
+  H.match(proc.exit_message("whisper-cli", 3221225501), "AVX2", "an instruction-set mismatch")
+  H.eq(proc.exit_message("ffmpeg", 1), "ffmpeg exited with 1", "an ordinary code stays as it was")
+  H.eq(proc.exit_message("ffmpeg", nil), "ffmpeg exited with nil", "")
 end

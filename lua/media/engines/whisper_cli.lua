@@ -15,6 +15,10 @@
 
 local uv = vim.uv or vim.loop
 
+-- Resolved at load, on the main loop: it is called from `vim.system`'s
+-- `on_exit`, a fast event context, where a first `require` can fail.
+local exit_message = require("media.core.proc").exit_message
+
 local M = {}
 
 --- The JSON both CLIs write, as a `Media.Transcript`.
@@ -155,8 +159,7 @@ function M.run(spec, callback)
         remove_dir(out_dir)
         local reason = spec.failure_reason(result.stdout, result.stderr)
         if not reason then
-          reason = result.code ~= 0
-              and ("%s exited with %s"):format(spec.label, tostring(result.code))
+          reason = result.code ~= 0 and exit_message(spec.label, result.code)
             or ("%s wrote no JSON: %s"):format(spec.label, json_path)
         end
         finish(nil, reason)

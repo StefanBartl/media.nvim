@@ -30,6 +30,10 @@
 --- position on playback is unchanged (see `media.init`) — what changed is that
 --- a consumer able to draw cells can now be handed a run of stills to draw.
 
+-- Resolved at load, on the main loop: it is called from `vim.system`'s
+-- `on_exit`, a fast event context, where a first `require` can fail.
+local exit_message = require("media.core.proc").exit_message
+
 local M = {}
 
 local uv = vim.uv or vim.loop
@@ -240,7 +244,7 @@ function M.frames(path, opts, callback)
             uv.fs_unlink(tout)
           end
           local stderr = (result.stderr or ""):gsub("%s+$", "")
-          done(stderr ~= "" and stderr or ("ffmpeg exited with " .. tostring(result.code)))
+          done(stderr ~= "" and stderr or exit_message("ffmpeg", result.code))
           return
         end
         -- Promote the leading run that actually exists, mirroring

@@ -22,6 +22,10 @@
 --- front, so a file that reports no duration is not a problem here the way it
 --- is for a contact sheet.
 
+-- Resolved at load, on the main loop: it is called from `vim.system`'s
+-- `on_exit`, a fast event context, where a first `require` can fail.
+local exit_message = require("media.core.proc").exit_message
+
 local M = {}
 
 --- The argv for one rendering.
@@ -115,7 +119,7 @@ local function render(mode, path, opts, callback)
       vim.system(argv, { text = true, timeout = cfg.waveform.timeout_ms }, function(result)
         if result.code ~= 0 then
           local stderr = (result.stderr or ""):gsub("%s+$", "")
-          done(stderr ~= "" and stderr or ("ffmpeg exited with " .. tostring(result.code)))
+          done(stderr ~= "" and stderr or exit_message("ffmpeg", result.code))
           return
         end
         done(nil)

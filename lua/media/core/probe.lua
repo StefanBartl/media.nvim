@@ -23,6 +23,10 @@
 --- "there is one still, and it is the album art" — which is worth showing, just
 --- not worth seeking into.
 
+-- Resolved at load, on the main loop: it is called from `vim.system`'s
+-- `on_exit`, a fast event context, where a first `require` can fail.
+local exit_message = require("media.core.proc").exit_message
+
 local M = {}
 
 local uv = vim.uv or vim.loop
@@ -262,7 +266,7 @@ function M.probe(path, callback)
   local ok, spawn_err = pcall(vim.system, argv, { text = true, timeout = timeout }, function(result)
     if result.code ~= 0 then
       local stderr = (result.stderr or ""):gsub("%s+$", "")
-      finish(nil, stderr ~= "" and stderr or ("ffprobe exited with " .. tostring(result.code)))
+      finish(nil, stderr ~= "" and stderr or exit_message("ffprobe", result.code))
       return
     end
 

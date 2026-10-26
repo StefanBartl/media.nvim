@@ -32,7 +32,10 @@ sudo apt install mpv                # Debian / Ubuntu — optional
 
 `whisper-cli` has no package-manager install on any platform this plugin
 targets — build it from [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
-(`cmake -B build && cmake --build build`) and download a GGML model
+(`cmake -B build && cmake --build build`; on Windows with MinGW add
+`-DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++"`, or the
+binary may load another program's `libstdc++-6.dll` from PATH and die before
+printing anything — reported as "a DLL it loaded is the wrong version") and download a GGML model
 separately (e.g. `ggml-base.en.bin`). Point `transcribe.whisper_cpp.model` at
 it; `bin["whisper-cli"]` only if the binary lands off PATH. Neither the
 binary nor a model is ever fetched by this plugin — `:checkhealth media`

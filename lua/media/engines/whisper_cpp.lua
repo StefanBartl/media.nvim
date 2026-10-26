@@ -21,6 +21,10 @@
 --- and reports the reason only on stderr. The exit code alone was therefore
 --- never a sufficient test; see `M.failure_reason` and the no-JSON branch.
 
+-- Resolved at load, on the main loop: it is called from `vim.system`'s
+-- `on_exit`, a fast event context, where a first `require` can fail.
+local exit_message = require("media.core.proc").exit_message
+
 local uv = vim.uv or vim.loop
 
 --- Declared as a class, like `PdfPort.Backend.Tesseract`, so the methods
@@ -294,7 +298,7 @@ function M.transcribe(wav_path, opts, callback)
     proc = nil
     if result.code ~= 0 then
       local stderr = (result.stderr or ""):gsub("%s+$", "")
-      finish(nil, stderr ~= "" and stderr or ("whisper-cli exited with " .. tostring(result.code)))
+      finish(nil, stderr ~= "" and stderr or exit_message("whisper-cli", result.code))
       return
     end
 

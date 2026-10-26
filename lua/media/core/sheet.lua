@@ -28,6 +28,10 @@
 --- threshold below is where a file is long enough that keyframes are
 --- guaranteed denser than the sampling interval.
 
+-- Resolved at load, on the main loop: it is called from `vim.system`'s
+-- `on_exit`, a fast event context, where a first `require` can fail.
+local exit_message = require("media.core.proc").exit_message
+
 local M = {}
 
 ---@type number Seconds above which the keyframe-only decode is used.
@@ -154,7 +158,7 @@ function M.sheet(path, opts, callback)
       vim.system(argv, { text = true, timeout = cfg.sheet.timeout_ms }, function(result)
         if result.code ~= 0 then
           local stderr = (result.stderr or ""):gsub("%s+$", "")
-          done(stderr ~= "" and stderr or ("ffmpeg exited with " .. tostring(result.code)))
+          done(stderr ~= "" and stderr or exit_message("ffmpeg", result.code))
           return
         end
         done(nil)

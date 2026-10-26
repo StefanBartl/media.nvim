@@ -10,6 +10,10 @@
 --- no offset to resolve, which is what makes this simpler than either half of
 --- `frame`/`frames`.
 
+-- Resolved at load, on the main loop: it is called from `vim.system`'s
+-- `on_exit`, a fast event context, where a first `require` can fail.
+local exit_message = require("media.core.proc").exit_message
+
 local M = {}
 
 --- The argv for one conversion.
@@ -108,7 +112,7 @@ function M.normalize(path, callback)
           proc = nil
           if result.code ~= 0 then
             local stderr = (result.stderr or ""):gsub("%s+$", "")
-            done(stderr ~= "" and stderr or ("ffmpeg exited with " .. tostring(result.code)))
+            done(stderr ~= "" and stderr or exit_message("ffmpeg", result.code))
             return
           end
           done(nil)

@@ -30,6 +30,41 @@
 
 local M = {}
 
+--- Windows NTSTATUS codes a process dies with before it has printed anything,
+--- by the unsigned value `vim.system` reports as the exit code. All of them
+--- mean "the binary could not run at all", not "the input was bad".
+---
+--- **The measurement behind this table** (2026-10-26): a locally built
+--- `whisper-cli.exe` exited with 3221225785 on every run, empty stderr,
+--- because it loaded another program's `libstdc++-6.dll` from PATH. The
+--- message a user got was "whisper-cli exited with 3221225785" — true, and
+--- useless.
+---@type table<integer, string>
+local NTSTATUS = {
+  [3221225781] = "a DLL it needs was not found (0xC0000135)",
+  [3221225785] = "a DLL it loaded is the wrong version — another program's copy on PATH? (0xC0000139)",
+  [3221225595] = "a DLL it needs failed to initialise (0xC000007B, often 32/64-bit mixed)",
+  [3221225477] = "it crashed (access violation, 0xC0000005)",
+  [3221225501] = "this CPU lacks an instruction it was built for, e.g. AVX2 (0xC000001D)",
+  [3221226505] = "it aborted (0xC0000409)",
+}
+
+--- The message for a process that exited with `code` and printed nothing
+--- useful: the code, plus what it means when it is one of the Windows
+--- "could not run at all" codes.
+---
+--- Pure (no `vim.fn`), so it is safe in `vim.system`'s `on_exit`, which is a
+--- fast event context.
+---@param label string  # the binary's name, e.g. "ffmpeg"
+---@param code integer|nil
+---@return string
+function M.exit_message(label, code)
+  local base = ("%s exited with %s"):format(label, tostring(code))
+  local meaning = code and NTSTATUS[code]
+  if meaning then return ("%s: %s"):format(base, meaning) end
+  return base
+end
+
 --- The argv that stops the tree rooted at `pid` on Windows.
 ---
 --- Pure and public so the flags are assertable without spawning anything.

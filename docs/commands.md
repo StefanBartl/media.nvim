@@ -306,6 +306,15 @@ path means a *directory* holding a converted CTranslate2 model (`model.bin`);
 for whisper.cpp it becomes `ggml-<name>.bin`, looked up in
 `transcribe.whisper_cpp.model_dir` and beside `transcribe.whisper_cpp.model`.
 
+**Mixed-language recordings** (measured 2026-10-26 on a German/English
+meeting): detection decides once, on the first 30 seconds, and a model then
+writes everything in that language. Forcing `lang=` does not translate either
+— Whisper's only translation target is English — so forcing `de` on English
+speech yields invented German. Use `lang=` for the language that is actually
+spoken most, and a larger model (`small` and up) for code-switched audio; the
+small `tiny`/`base` models drift into English in whisper.cpp's timestamped
+mode even with `-l de`.
+
 ### The engines
 
 | Engine | Tool | Model |
