@@ -24,14 +24,16 @@ return function(H)
   H.eq(argv[l + 1], "en", "the forced language reaches whisper.cpp")
   H.falsy(H.index_of(argv, "-tr"), "no translate flag when the task is plain transcription")
 
-  -- ── an unset language omits -l entirely ──────────────────────────────
+  -- ── an unset language is `-l auto`, never an omitted flag ─────────────
+  -- whisper-cli's own default is `en`: without `-l` every "detect it" run
+  -- was forced to English.
   local auto = engine.args({
     bin = "whisper-cli",
     wav_path = "/tmp/talk.wav",
     model = "/models/ggml-base.en.bin",
     out_prefix = "/tmp/talk",
   })
-  H.falsy(H.index_of(auto, "-l"), "no language flag means whisper.cpp detects it")
+  H.eq(auto[H.index_of(auto, "-l") + 1], "auto", "detection is asked for explicitly")
 
   -- ── translate ─────────────────────────────────────────────────────────
   local translated = engine.args({
@@ -120,4 +122,54 @@ return function(H)
   )
   H.eq(engine.failure_reason(nil), nil, "")
   H.eq(engine.failure_reason(""), nil, "")
+
+  -- ── model resolution: config default, a path, or a name → ggml-<name>.bin
+  local config = require("media.config")
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir .. "/more", "p")
+  local base = dir .. "/ggml-base.bin"
+  vim.fn.writefile({ "x" }, base)
+  vim.fn.writefile({ "x" }, dir .. "/ggml-medium.bin")
+  vim.fn.writefile({ "x" }, dir .. "/more/ggml-large-v3.bin")
+
+  config.setup({})
+  local none, none_err = engine.resolve_model(nil)
+  H.eq(none, nil, "no model configured and none asked for")
+  H.match(none_err, "no whisper.cpp model configured", "the long-standing message")
+
+  config.setup({ transcribe = { whisper_cpp = { model = base } } })
+  H.eq(engine.resolve_model(nil), base, "nothing asked for: the configured model")
+  -- Compared normalized: `vim.fs.dirname` turns Windows separators into `/`.
+  H.eq(
+    vim.fs.normalize(engine.resolve_model("medium") or ""),
+    vim.fs.normalize(dir .. "/ggml-medium.bin"),
+    "a name is found beside it"
+  )
+  local _, unknown_err = engine.resolve_model("large-v3")
+  H.match(unknown_err, "ggml%-large%-v3%.bin", "a name with no file says which file it wanted")
+
+  config.setup({ transcribe = { whisper_cpp = { model = base, model_dir = dir .. "/more" } } })
+  H.eq(
+    engine.resolve_model("large-v3"),
+    dir .. "/more/ggml-large-v3.bin",
+    "model_dir is searched first"
+  )
+  H.eq(
+    vim.fs.normalize(engine.resolve_model("large") or ""),
+    vim.fs.normalize(dir .. "/more/ggml-large-v3.bin"),
+    "the neutral alias `large` is the v3 file, as for openai-whisper"
+  )
+  H.eq(
+    vim.fs.normalize(engine.resolve_model("ggml-medium.bin") or ""),
+    vim.fs.normalize(dir .. "/ggml-medium.bin"),
+    "a bare GGML file name is searched for like a name"
+  )
+  local _, turbo_err = engine.resolve_model("turbo")
+  H.match(turbo_err, "ggml%-large%-v3%-turbo%.bin", "turbo wants the v3-turbo file")
+  H.eq(engine.resolve_model(base), base, "a path is taken as given")
+  local _, missing_err = engine.resolve_model(dir .. "/nope.bin")
+  H.match(missing_err, "model not found", "a path that does not exist is an error, not a search")
+
+  vim.fn.delete(dir, "rf")
+  config.setup({})
 end

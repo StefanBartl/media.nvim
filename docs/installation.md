@@ -9,6 +9,7 @@
 | `ffmpeg` + `ffprobe` | required — one install, both binaries |
 | `mpv` | optional — sound for a played run, and `:Media window` / `media.play_window()` |
 | [whisper.cpp](https://github.com/ggml-org/whisper.cpp)'s `whisper-cli` + a GGML model | optional — `media.transcribe()` / `:Media transcribe` |
+| **or** [openai-whisper](https://github.com/openai/whisper)'s `whisper` | optional — the same, through PyTorch; either engine is enough |
 
 Every place this plugin reaches for lib.nvim falls back to a plain Neovim
 equivalent when it is missing (`:checkhealth media` reports this under
@@ -35,6 +36,19 @@ separately (e.g. `ggml-base.en.bin`). Point `transcribe.whisper_cpp.model` at
 it; `bin["whisper-cli"]` only if the binary lands off PATH. Neither the
 binary nor a model is ever fetched by this plugin — `:checkhealth media`
 reports what is missing.
+
+openai-whisper is the alternative when building whisper.cpp is not an option:
+
+```bash
+pip install -U openai-whisper       # or: pipx install openai-whisper
+brew install openai-whisper         # macOS
+```
+
+It needs ffmpeg on PATH, which this plugin arranges for the process it
+starts, and it fetches a model by name the first time it is used. The plugin
+refuses that until you set `transcribe.openai_whisper.allow_download = true`,
+or until you have run `whisper --model <name>` once yourself. With the default
+`transcribe.engine = "auto"`, whichever of the two engines is ready gets used.
 
 After a Windows install, restart the terminal: winget and scoop extend the *user*
 PATH, and every already-running process inherited its copy at login. The plugin

@@ -129,7 +129,15 @@ return function(H)
       -- Reconfiguring the test double for this phase, not a real duplicate.
       ---@diagnostic disable-next-line: duplicate-set-field
       resolver_stub.resolve = function()
-        error("must not resolve an engine while normalize never called back")
+        -- Resolved up front (its id keys the run); its transcribe must never
+        -- be reached, because normalize never calls back here.
+        return {
+          id = "fake",
+          transcribe = function()
+            error("must not transcribe while normalize never called back")
+          end,
+        },
+          nil
       end
 
       local handle1 = dispatcher.transcribe(path, { cache = false }, function() end)
@@ -155,7 +163,13 @@ return function(H)
     --    value — `nonempty_or`'s reason to exist ─────────────────────────
     do
       config.setup({
-        transcribe = { engine = "cfg-engine", lang = "cfg-lang", task = "translate", cache = false },
+        transcribe = {
+          engine = "cfg-engine",
+          lang = "fr",
+          model = "cfg-model",
+          task = "translate",
+          cache = false,
+        },
       })
       -- Reconfiguring the test double for this phase, not a real duplicate.
       ---@diagnostic disable-next-line: duplicate-set-field
@@ -164,11 +178,12 @@ return function(H)
         return { cancel = function() end }
       end
 
-      local resolved_with, transcribe_opts
+      local resolved_with, resolve_opts, transcribe_opts
       -- Reconfiguring the test double for this phase, not a real duplicate.
       ---@diagnostic disable-next-line: duplicate-set-field
-      resolver_stub.resolve = function(requested)
+      resolver_stub.resolve = function(requested, ropts)
         resolved_with = requested
+        resolve_opts = ropts
         local fake_engine = {
           id = "fake",
           transcribe = function(_, opts, callback)
@@ -182,21 +197,132 @@ return function(H)
 
       dispatcher.transcribe(
         "/tmp/__dispatcher_spec_empty_opts.mkv",
-        { engine = "", lang = "", cache = false },
+        { engine = "", lang = "", model = "", cache = false },
         function() end
       )
       H.eq(resolved_with, "cfg-engine", "an empty-string engine falls back to the configured one")
-      H.eq(transcribe_opts.lang, "cfg-lang", "an empty-string lang falls back too")
+      H.eq(transcribe_opts.lang, "fr", "an empty-string lang falls back too")
+      H.eq(transcribe_opts.model, "cfg-model", "and an empty-string model")
+      H.eq(resolve_opts.model, "cfg-model", "the resolver is asked about the same model")
       H.eq(transcribe_opts.task, "translate", "an omitted task falls back to the configured one")
 
       dispatcher.transcribe(
         "/tmp/__dispatcher_spec_explicit_opts.mkv",
-        { engine = "explicit", lang = "explicit-lang", task = "translate", cache = false },
+        { engine = "explicit", lang = "it", model = "tiny", task = "translate", cache = false },
         function() end
       )
       H.eq(resolved_with, "explicit", "a real value is never overridden by the default")
-      H.eq(transcribe_opts.lang, "explicit-lang", "same for lang")
+      H.eq(transcribe_opts.lang, "it", "same for lang")
+      H.eq(transcribe_opts.model, "tiny", "same for model")
       H.eq(transcribe_opts.task, "translate", "same for task")
+
+      -- ── lang is normalized before the engine sees it ───────────────────
+      dispatcher.transcribe(
+        "/tmp/__dispatcher_spec_lang_name.mkv",
+        { lang = "Deutsch", cache = false },
+        function() end
+      )
+      H.eq(transcribe_opts.lang, "de", "a language name reaches the engine as its code")
+      dispatcher.transcribe(
+        "/tmp/__dispatcher_spec_lang_auto.mkv",
+        { lang = "auto", cache = false },
+        function() end
+      )
+      H.eq(transcribe_opts.lang, nil, "lang=auto overrides a configured language back to detection")
+
+      -- An unknown language fails before anything runs — not after the whole
+      -- file has been decoded to WAV.
+      local normalize_ran = false
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      normalize_stub.normalize = function()
+        normalize_ran = true
+        return { cancel = function() end }
+      end
+      local bad_t, bad_err = "unset", nil
+      dispatcher.transcribe(
+        "/tmp/__dispatcher_spec_lang_bad.mkv",
+        { lang = "klingon", cache = false },
+        function(t, e)
+          bad_t, bad_err = t, e
+        end
+      )
+      vim.wait(500, function()
+        return bad_err ~= nil
+      end, 5)
+      H.eq(bad_t, nil, "an unknown language yields no transcript")
+      H.match(bad_err, "unknown language", "but an error naming the problem")
+      H.eq(normalize_ran, false, "and the WAV extraction never started")
+
+      -- ── the cache is keyed by the RESOLVED engine, and a model is only a
+      --    key part when one was asked for (old entries keep hitting) ────
+      config.setup({ transcribe = { engine = "auto", lang = "fr" } })
+      local seen_parts
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      cache_stub.file = function(_, _, parts)
+        seen_parts = parts
+        return nil, "stop here"
+      end
+      dispatcher.transcribe("/tmp/__dispatcher_spec_key_auto.mkv", {}, function() end)
+      H.eq_list(
+        seen_parts,
+        { "fake", "fr", "transcribe" },
+        "auto is keyed by the engine it resolved to, with no model part when none was asked for"
+      )
+      dispatcher.transcribe(
+        "/tmp/__dispatcher_spec_key_model.mkv",
+        { model = "medium" },
+        function() end
+      )
+      H.eq_list(seen_parts, { "fake", "fr", "transcribe", "medium" }, "a model is its own entry")
+
+      -- ── no ready engine fails before any decoding starts ─────────────────
+      local decoded = false
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      normalize_stub.normalize = function()
+        decoded = true
+        return { cancel = function() end }
+      end
+      local saved_resolve = resolver_stub.resolve
+      -- Reconfiguring the test double for this phase, not a real duplicate.
+      ---@diagnostic disable-next-line: duplicate-set-field
+      resolver_stub.resolve = function()
+        return nil, "media: no available transcription engine. Tried: [x]"
+      end
+      local none_err
+      dispatcher.transcribe(
+        "/tmp/__dispatcher_spec_no_engine.mkv",
+        { cache = false },
+        function(_, e)
+          none_err = e
+        end
+      )
+      vim.wait(500, function()
+        return none_err ~= nil
+      end, 5)
+      H.match(
+        none_err,
+        "no available transcription engine",
+        "the resolver's reason reaches the caller"
+      )
+      H.eq(decoded, false, "and the WAV extraction never started")
+      resolver_stub.resolve = saved_resolve
+      config.setup({ transcribe = { lang = "fr", cache = false } })
+
+      -- A cancelled handle stays silent, as every handle here promises.
+      local late = false
+      local handle = dispatcher.transcribe(
+        "/tmp/__dispatcher_spec_lang_bad_cancel.mkv",
+        { lang = "klingon", cache = false },
+        function()
+          late = true
+        end
+      )
+      handle.cancel()
+      vim.wait(50)
+      H.eq(late, false, "a cancelled run never calls back, even with its error")
     end
 
     -- ── on_phase reports the two long steps, in order, as each begins ──

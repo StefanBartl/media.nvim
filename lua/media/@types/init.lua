@@ -35,6 +35,7 @@
 ---@field ffprobe string|nil
 ---@field mpv string|nil
 ---@field ["whisper-cli"] string|nil  # `media.core.bin.find("whisper-cli")` reads this key
+---@field whisper string|nil  # openai-whisper's CLI
 
 ---@class Media.Config.Frame
 ---@field at number|string  # seconds, or a percentage of the duration ("10%")
@@ -54,18 +55,28 @@
 ---@field timeout_ms integer
 
 ---@class Media.Config.Transcribe
----@field engine string
+---@field engine string  # an engine id, or "auto"
+---@field auto string[]  # the order `engine = "auto"` tries
 ---@field fallback string[]
----@field lang string|nil
+---@field lang string|nil  # anything `media.core.lang.normalize` accepts
+---@field model string|nil  # engine-neutral model name or path
 ---@field task "transcribe"|"translate"
 ---@field output Media.Output.Mode
 ---@field cache boolean
 ---@field timeout_ms integer  # 0 = no timeout
 ---@field normalize_timeout_ms integer
 ---@field whisper_cpp Media.Config.Transcribe.WhisperCpp
+---@field openai_whisper Media.Config.Transcribe.OpenAIWhisper
 
 ---@class Media.Config.Transcribe.WhisperCpp
 ---@field model string|nil  # absolute path to a GGML .bin model file
+---@field model_dir string|nil  # where `model = "<name>"` finds `ggml-<name>.bin`
+
+---@class Media.Config.Transcribe.OpenAIWhisper
+---@field model string|nil  # model name or `.pt` path; nil = "turbo"
+---@field model_dir string|nil  # whisper's `--model_dir`; nil = ~/.cache/whisper
+---@field device string|nil  # whisper's `--device`
+---@field allow_download boolean  # let whisper fetch a missing model on first use
 
 --- `lib.nvim.progress`'s style names, re-declared rather than referenced.
 ---
@@ -134,6 +145,7 @@
 ---@field ffprobe? string
 ---@field mpv? string
 ---@field ["whisper-cli"]? string
+---@field whisper? string
 
 ---@class Media.Opts.Frame
 ---@field at? number|string
@@ -154,17 +166,27 @@
 
 ---@class Media.Opts.Transcribe
 ---@field engine? string
+---@field auto? string[]
 ---@field fallback? string[]
 ---@field lang? string
+---@field model? string
 ---@field task? "transcribe"|"translate"
 ---@field output? Media.Output.Mode
 ---@field cache? boolean
 ---@field timeout_ms? integer
 ---@field normalize_timeout_ms? integer
 ---@field whisper_cpp? Media.Opts.Transcribe.WhisperCpp
+---@field openai_whisper? Media.Opts.Transcribe.OpenAIWhisper
 
 ---@class Media.Opts.Transcribe.WhisperCpp
 ---@field model? string
+---@field model_dir? string
+
+---@class Media.Opts.Transcribe.OpenAIWhisper
+---@field model? string
+---@field model_dir? string
+---@field device? string
+---@field allow_download? boolean
 
 ---@class Media.Opts.Cache
 ---@field enabled? boolean
@@ -275,12 +297,13 @@
 ---@field name string
 ---@field capabilities Media.EngineCapabilities
 ---@field available fun(): boolean
+---@field ready? fun(opts: { model: string|nil }|nil): boolean, string|nil  # optional: installed AND able to run with this model; what `engine = "auto"` asks
 ---@field transcribe fun(wav_path: string, opts: Media.Engine.TranscribeOpts, callback: fun(transcript: Media.Transcript|nil, err: string|nil): nil): Media.Engine.Job
 
 ---@class Media.Engine.TranscribeOpts
----@field lang string|nil
+---@field lang string|nil  # already normalized to a Whisper language code
 ---@field task "transcribe"|"translate"|nil
----@field model string|nil
+---@field model string|nil  # engine-neutral: a size name or a path; nil = the engine's own default
 
 --- What one engine call hands back so a caller can give up on it.
 --- `cancel()` is idempotent, and after it the callback never fires.
@@ -307,8 +330,9 @@
 
 --- What `media.transcribe` accepts.
 ---@class Media.TranscribeOpts
----@field engine string|nil     # default `transcribe.engine`
----@field lang string|nil       # default `transcribe.lang`
+---@field engine string|nil     # default `transcribe.engine`; "auto" picks the first ready engine
+---@field lang string|nil       # default `transcribe.lang`; a code, region tag or name ("deutsch"); "auto" detects
+---@field model string|nil      # default `transcribe.model`; a size name ("medium") or a model file path
 ---@field task "transcribe"|"translate"|nil  # default `transcribe.task`
 ---@field output Media.Output.Mode|nil       # default `transcribe.output`
 ---@field cache boolean|nil     # default `transcribe.cache`

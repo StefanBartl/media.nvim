@@ -58,6 +58,15 @@
       }
     },
     {
+      "bin": "whisper",
+      "required": false,
+      "why": "The second transcription engine: OpenAI's reference Whisper (PyTorch), used by `engine = \"auto\"` when whisper.cpp is not ready. Installed with `pip install -U openai-whisper` (or `pipx install openai-whisper`); the plugin also finds it in Python's own Scripts directories when PATH does not reach them. It downloads a model by name on first use (`turbo` is 1.6 GB) — this plugin refuses that unless `transcribe.openai_whisper.allow_download = true`, and `:checkhealth media` lists what is already downloaded.",
+      "see": "https://github.com/openai/whisper",
+      "pkg": {
+        "brew": "openai-whisper"
+      }
+    },
+    {
       "bin": "tesseract",
       "required": false,
       "why": "OCR for the image rows of `:Media dashboard` and for `:Media text` on a picture. Reached through images.nvim, which owns OCR in this ecosystem — media.nvim never calls it directly. Without either, image rows still appear and say what is missing.",

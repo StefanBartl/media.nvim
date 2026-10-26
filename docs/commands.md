@@ -248,7 +248,7 @@ not work worth doing.
 | --- | --- | --- |
 | image | `images.ocr.run` | tesseract, through images.nvim |
 | pdf | `pdfport.extract` | whichever of pdfport's backends can read it |
-| audio, video | this plugin's own dispatcher | whisper.cpp |
+| audio, video | this plugin's own dispatcher | whisper.cpp or openai-whisper (`transcribe.engine`) |
 | anything else | nothing — it says so | — |
 
 `out=` is the same argument `:Media transcribe` takes, but **the modes on
@@ -279,17 +279,44 @@ tesseract was not found — install tesseract, or set images.nvim's `ocr.bin`
 Audio and video get the same live indicator, cancel key and `progress_style`
 as `:Media transcribe`, because they are the same run.
 
-## `:Media transcribe [path] [engine=] [lang=] [task=] [out=]`
+## `:Media transcribe [path] [engine=] [lang=] [model=] [task=] [out=]`
 
 Turns `path`'s speech into text: probes it, extracts a 16 kHz mono WAV,
 runs it through the resolved engine, and delivers the result.
 
+```vim
+:Media transcribe talk.mp4 lang=deutsch model=medium out=srt
+```
+
 | Argument | Takes | Default |
 | --- | --- | --- |
-| `engine=` | a registered engine id (`whisper_cpp` is the only one in phase 0) | `transcribe.engine` |
-| `lang=` | an ISO 639-1 code (`en`, `de`, …), or omit to let the engine detect it | `transcribe.lang` |
-| `task=` | `transcribe` (keep the source language) or `translate` (whisper.cpp's own English-only translate) | `transcribe.task` |
+| `engine=` | `whisper_cpp`, `openai_whisper`, or `auto` — the first engine that is installed *and* has a usable model | `transcribe.engine` (`auto`) |
+| `lang=` | a code (`de`), a region tag (`de-AT`), a name (`german`, `deutsch`, `Französisch`), or `auto` to detect it even when `transcribe.lang` is set | `transcribe.lang` |
+| `model=` | a size name — `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, `medium.en`, … — or a path to a model file | `transcribe.model`, then the engine's own |
+| `task=` | `transcribe` (keep the source language) or `translate` (the engine's own English-only translate) | `transcribe.task` |
 | `out=` | `buffer`, `sidecar`, `srt` or `vtt` — see the table below | `transcribe.output` |
+
+**The arguments are engine-neutral; each engine maps them to its own flags.**
+`lang=` is normalized once, before anything runs — `deutsch`, `German` and
+`de-AT` all reach the engine as `de`, and a word it does not know fails at
+once instead of after the WAV extraction. `model=` is a *name* for
+openai-whisper, which it passes straight through, and becomes
+`ggml-<name>.bin` for whisper.cpp, looked up in
+`transcribe.whisper_cpp.model_dir` and beside `transcribe.whisper_cpp.model`.
+
+### The engines
+
+| Engine | Tool | Model |
+| --- | --- | --- |
+| `whisper_cpp` | whisper.cpp's `whisper-cli` — no Python, the fastest on a CPU | a GGML `.bin` file you downloaded yourself |
+| `openai_whisper` | OpenAI's `whisper` (`pip install openai-whisper`) | a name; whisper downloads it on first use, which this plugin only allows with `transcribe.openai_whisper.allow_download = true` |
+
+`engine=auto` (the default) tries `transcribe.auto` in order —
+`{ "whisper_cpp", "openai_whisper" }` — and takes the first one that can
+actually run: a whisper.cpp with no model, or an openai-whisper whose model
+is not downloaded while downloads are off, is passed over. When nothing is
+ready the error names each engine and why. A *named* engine is never passed
+over: you get its own error instead.
 
 ### Where the transcript goes
 
@@ -323,13 +350,12 @@ its own, and a figure derived from the audio duration would be calibrated to
 whichever machine, model and thread count measured it. A wrong percentage is
 worse than none, because it is the one a reader plans around.
 
-Needs `whisper-cli` on PATH (or `bin["whisper-cli"]` configured) and
-`transcribe.whisper_cpp.model` set to a GGML `.bin` file — `:checkhealth
-media` says which, if either, is missing; neither is ever installed or
-downloaded automatically. Cached the same way every other rendering here is,
-keyed by the source file's mtime plus the engine/language/task that produced
-it — an edited file, a different engine or a different language each get
-their own entry.
+Needs one ready engine: `whisper-cli` plus a GGML model, or `whisper` plus a
+downloaded (or allowed-to-download) model — `:checkhealth media` says which
+is missing and what `auto` would pick. Cached the same way every other
+rendering here is, keyed by the source file's mtime plus the
+engine/language/task/model that produced it — an edited file, a different
+engine, language or model each get their own entry.
 
 Every other target language than English goes through
 [language.nvim](https://github.com/StefanBartl/language.nvim) afterwards,
@@ -339,8 +365,16 @@ that split is where the capability actually lives, not a preference.
 ## `:Media engines`
 
 Lists every registered transcription engine and whether it currently reports
-itself available — the same check `:Media transcribe` makes before running
-one.
+itself available — and, for one that is installed, whether it is *ready*
+(has a usable model, asked about `transcribe.model`) and if not, why —
+followed by the engine a `:Media transcribe` without `engine=` would use
+right now.
+
+```
+whisper_cpp      available, not ready: no whisper.cpp model configured — …
+openai_whisper   available
+engine = "auto" → openai_whisper
+```
 
 ## `:Media play [path]`
 

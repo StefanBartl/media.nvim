@@ -57,8 +57,15 @@ before this existed.
 | `whisper.cpp model: <path>` | `transcribe.whisper_cpp.model` is set and the file exists |
 | `transcribe.whisper_cpp.model is set but the file does not exist` | a typo, or a model that was moved or never downloaded |
 | `no whisper.cpp model configured` | set `transcribe.whisper_cpp.model` to a GGML `.bin` file — never fetched automatically |
+| `whisper (openai-whisper) found: <path>` | the second engine is installed |
+| `openai-whisper models in <dir>: <files>` | the checkpoints already downloaded — a run with one of these needs no network |
+| `no openai-whisper model downloaded yet` | the first run fetches one, but only with `transcribe.openai_whisper.allow_download = true` |
+| `openai-whisper model "<name>" is not downloaded yet` | the model a run would use right now is missing and downloads are off |
+| `whisper (openai-whisper) not found` | `pip install openai-whisper`, or `bin.whisper` |
+| `engine = "auto" → <id>` | the engine a `:Media transcribe` with no `engine=` would use |
+| `engine = "auto": nothing ready yet — …` | every engine, with the reason it cannot run |
 
-Both the binary and the model are `h_info`/`h_warn`, never `h_err`: nothing
+The binaries and the models are `h_info`/`h_warn`, never `h_err`: nothing
 else in this plugin needs either, and `media.transcribe` reports the same two
 reasons itself, in a message, the moment something actually asks for a
 transcript.

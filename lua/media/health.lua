@@ -171,7 +171,8 @@ function M.check()
         .. " if it lands off PATH"
     )
   end
-  local model = require("media.config").get().transcribe.whisper_cpp.model
+  local tcfg = require("media.config").get().transcribe
+  local model = tcfg.whisper_cpp.model
   if type(model) == "string" and model ~= "" then
     if (vim.uv or vim.loop).fs_stat(model) then
       h_ok("whisper.cpp model: " .. model)
@@ -183,6 +184,47 @@ function M.check()
       "no whisper.cpp model configured — set `transcribe.whisper_cpp.model` to a GGML .bin "
         .. "file (never downloaded automatically)"
     )
+  end
+
+  local openai = require("media.engines.openai_whisper")
+  local openai_bin = require("media.core.bin").find("whisper")
+  if openai_bin then
+    h_ok("whisper (openai-whisper) found: " .. openai_bin)
+    local dir = openai.model_dir()
+    local present = {}
+    local handle = (vim.uv or vim.loop).fs_scandir(dir)
+    while handle do
+      local entry = (vim.uv or vim.loop).fs_scandir_next(handle)
+      if not entry then break end
+      if entry:match("%.pt$") then present[#present + 1] = entry end
+    end
+    table.sort(present)
+    if #present > 0 then
+      h_ok(("openai-whisper models in %s: %s"):format(dir, table.concat(present, ", ")))
+    else
+      h_info("no openai-whisper model downloaded yet (" .. dir .. ")")
+    end
+    local _, model_err = openai.resolve_model(tcfg.model)
+    if model_err then h_info(model_err) end
+    if tcfg.openai_whisper.allow_download then
+      h_info(
+        "`transcribe.openai_whisper.allow_download = true`: whisper fetches a missing model on first use"
+      )
+    end
+  else
+    h_info(
+      "whisper (openai-whisper) not found — `pip install openai-whisper` for the second engine, "
+        .. "or set `bin.whisper`"
+    )
+  end
+
+  if tcfg.engine == "auto" then
+    local chosen, why = require("media.core.resolver").resolve("auto", { model = tcfg.model })
+    if chosen then
+      h_ok(('engine = "auto" → %s'):format(chosen.id))
+    else
+      h_info('engine = "auto": nothing ready yet — ' .. tostring(why))
+    end
   end
 
   h_start("media.nvim: what is claimed")

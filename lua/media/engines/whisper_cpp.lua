@@ -47,6 +47,83 @@ function M.available()
   return require("media.core.bin").find("whisper-cli") ~= nil
 end
 
+--- Neutral model names whose GGML file is not `ggml-<name>.bin` — the same
+--- aliases openai-whisper resolves (`large` is v3, `turbo` is v3-turbo), so
+--- `model=turbo` means one model whichever engine runs it.
+---@type table<string, string>
+local GGML_ALIASES = {
+  large = "large-v3",
+  turbo = "large-v3-turbo",
+}
+
+--- The GGML file a run would use, or why there is none.
+---
+--- `model` is what the caller asked for (`model=` / `transcribe.model`):
+--- nil uses `transcribe.whisper_cpp.model`; a path (a separator, or `.bin`)
+--- is taken as given; a bare name like `medium` or `large-v3` is looked up as
+--- `ggml-<name>.bin` in `transcribe.whisper_cpp.model_dir`, then beside the
+--- configured default model — the directory a person who downloaded one GGML
+--- file has most likely put the others in. Never downloads anything.
+---@param model string|nil
+---@return string|nil path
+---@return string|nil err
+function M.resolve_model(model)
+  local cfg = require("media.config").get().transcribe.whisper_cpp or {}
+  local default = (type(cfg.model) == "string" and cfg.model ~= "") and cfg.model or nil
+
+  if type(model) ~= "string" or model == "" then
+    if not default then
+      return nil,
+        "no whisper.cpp model configured — set `transcribe.whisper_cpp.model` to a .bin file"
+    end
+    if not uv.fs_stat(default) then return nil, "whisper.cpp model not found: " .. default end
+    return default, nil
+  end
+
+  if model:find("[/\\]") then
+    if not uv.fs_stat(model) then return nil, "whisper.cpp model not found: " .. model end
+    return model, nil
+  end
+
+  -- A bare file name (`ggml-medium.bin`) is looked for like a model name;
+  -- a size name maps to its GGML file, through the aliases whose file is not
+  -- `ggml-<name>.bin`.
+  local file = model:match("%.bin$") and model
+    or ("ggml-" .. (GGML_ALIASES[model] or model) .. ".bin")
+
+  local dirs = {}
+  if type(cfg.model_dir) == "string" and cfg.model_dir ~= "" then
+    dirs[#dirs + 1] = cfg.model_dir
+  end
+  if default then dirs[#dirs + 1] = vim.fs.dirname(default) end
+  for _, dir in ipairs(dirs) do
+    local candidate = dir .. "/" .. file
+    if uv.fs_stat(candidate) then return candidate, nil end
+  end
+  if file == model and uv.fs_stat(model) then return model, nil end
+  return nil,
+    (
+      "no whisper.cpp model named %q — put %s into `transcribe.whisper_cpp.model_dir` "
+      .. "(or beside `transcribe.whisper_cpp.model`), or pass a path"
+    ):format(model, file)
+end
+
+--- Whether a run with `opts` could start right now: the binary and a model.
+---
+--- Separate from `available()` on purpose (see its note): an explicitly
+--- chosen engine reports its own, specific error; `engine = "auto"` uses this
+--- to pass over a whisper.cpp that is installed but has no model yet, and to
+--- say why.
+---@param opts { model: string|nil }|nil
+---@return boolean ready
+---@return string|nil reason
+function M.ready(opts)
+  if not M.available() then return false, "`whisper-cli` not found" end
+  local path, err = M.resolve_model(opts and opts.model)
+  if not path then return false, err end
+  return true, nil
+end
+
 --- The argv for one run.
 ---
 --- Pure and public for the same reason `frame.args` is: the flag order is
@@ -75,10 +152,13 @@ function M.args(spec)
     -- than handing a reader everything stderr happened to contain.
     "-np",
   }
-  if spec.lang then
-    argv[#argv + 1] = "-l"
-    argv[#argv + 1] = spec.lang
-  end
+  -- Always a language: **whisper-cli's own default is `en`, not detection**,
+  -- so leaving `-l` out forced English on every run that asked for "let the
+  -- engine detect it" — what `lang = nil` has always been documented as.
+  -- `auto` is whisper.cpp's spelling of detection. Found in review,
+  -- 2026-10-26.
+  argv[#argv + 1] = "-l"
+  argv[#argv + 1] = spec.lang or "auto"
   if spec.translate then
     -- whisper.cpp's own translate flag: source language in, English out.
     -- Every other target language is `language.nvim`'s job (ROADMAP.md).
@@ -177,19 +257,10 @@ function M.transcribe(wav_path, opts, callback)
     return job
   end
 
-  local model = opts.model or cfg.whisper_cpp.model
-  if type(model) ~= "string" or model == "" then
+  local model, merr = M.resolve_model(opts.model)
+  if not model then
     vim.schedule(function()
-      finish(
-        nil,
-        "no whisper.cpp model configured — set `transcribe.whisper_cpp.model` to a .bin file"
-      )
-    end)
-    return job
-  end
-  if not uv.fs_stat(model) then
-    vim.schedule(function()
-      finish(nil, "whisper.cpp model not found: " .. model)
+      finish(nil, merr)
     end)
     return job
   end

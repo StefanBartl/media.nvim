@@ -143,23 +143,31 @@ before you press one.
                         images.nvim costs OCR and nothing else, and says so
                         with the fix.
 
-:Media transcribe [path] [engine=] [lang=] [task=] [out=]
+:Media transcribe [path] [engine=] [lang=] [model=] [task=] [out=]
                         Speech to text: probe, extract a 16 kHz mono WAV,
                         run it through the resolved engine, deliver it.
-                        `out=` is one of:
+                        `engine=` is whisper_cpp, openai_whisper or auto
+                        (the first one installed and with a usable model).
+                        `lang=` takes a code (de), a region tag (de-AT), a
+                        name (german, deutsch) or auto. `model=` is a size
+                        name (tiny, base, small, medium, large-v3, turbo)
+                        or a model file path; each engine maps it to its
+                        own form. `out=` is one of:
                           buffer   a scratch window (the default)
                           sidecar  <file>.transcript.md
                           srt      <file>.srt   (SubRip)
                           vtt      <file>.vtt   (WebVTT)
                         An unknown `out=` is rejected before the run
                         starts, not after minutes of waiting.
-                        Needs `whisper-cli` on PATH and
-                        `transcribe.whisper_cpp.model` set; neither is ever
-                        installed automatically. `:checkhealth media` says
-                        which is missing.
+                        Needs one ready engine: `whisper-cli` plus a GGML
+                        model, or openai-whisper's `whisper` plus a
+                        downloaded model (or `allow_download`). Nothing is
+                        installed or downloaded unasked; `:checkhealth
+                        media` says what is missing.
 
-:Media engines          List registered transcription engines and whether
-                        each reports itself available right now.
+:Media engines          List registered transcription engines, whether each
+                        is available and ready right now, and which one
+                        `auto` would pick.
 
 :Media play [path]      Hand the file to an external player (the configured
                         `player`, or the system default). Fire and forget.
@@ -199,7 +207,8 @@ Rebind or disable individually through `keymaps` — see
 
 >lua
     require("media").setup({
-      bin = { ffmpeg = nil, ffprobe = nil, mpv = nil },
+      bin = { ffmpeg = nil, ffprobe = nil, mpv = nil,
+              ["whisper-cli"] = nil, whisper = nil },
       timeout_ms = 15000,
       frame = { at = "10%", width = 800 },
       sheet = { rows = 3, cols = 4, width = 1200, margin = 4,
@@ -207,10 +216,13 @@ Rebind or disable individually through `keymaps` — see
       waveform = { width = 1200, height = 300, colors = "#9cdcfe",
                    timeout_ms = 120000 },
       transcribe = {
-        engine = "whisper_cpp", fallback = {}, lang = nil,
+        engine = "auto", auto = { "whisper_cpp", "openai_whisper" },
+        fallback = {}, lang = nil, model = nil,
         task = "transcribe", output = "buffer", cache = true,  -- buffer|sidecar|srt|vtt
         timeout_ms = 0, normalize_timeout_ms = 120000,
-        whisper_cpp = { model = nil },
+        whisper_cpp = { model = nil, model_dir = nil },
+        openai_whisper = { model = nil, model_dir = nil, device = nil,
+                           allow_download = false },
       },
       cache = { enabled = true, dir = nil },
       render_concurrency = 4,
@@ -227,7 +239,7 @@ Rebind or disable individually through `keymaps` — see
     })
 <
 bin.ffmpeg, bin.ffprobe,   An explicit path, for a binary installed but not
-bin.mpv                    on PATH. Honoured even when it does not exist, so
+bin.mpv, bin.whisper       on PATH. Honoured even when it does not exist, so
                            the error names your own setting. mpv is optional
                            -- only |media.audio()| uses it, and its absence
                            just means a played run stays silent.
@@ -273,10 +285,28 @@ progress_style             How :Media transcribe shows that it is working.
                            lib.nvim there is no indicator and the command
                            says "transcribing..." once, as it always did.
 
+transcribe.engine          "auto" by default: the first engine in
+                           transcribe.auto that is installed AND has a usable
+                           model. Name an engine to always use that one.
+
+transcribe.lang            A code, region tag or name ("de", "de-AT",
+                           "german", "deutsch"), checked before a run starts.
+
+transcribe.model           Engine-neutral model: a size name ("medium") or a
+                           file path. openai-whisper takes the name;
+                           whisper.cpp looks for ggml-<name>.bin in
+                           whisper_cpp.model_dir, then beside
+                           whisper_cpp.model.
+
 transcribe.whisper_cpp.model
                            Absolute path to a GGML .bin file. Never set or
                            downloaded automatically; :checkhealth media
                            reports it missing rather than guessing.
+
+transcribe.openai_whisper.allow_download
+                           false by default: a model whisper has not
+                           downloaded yet is an error naming the file, not a
+                           silent multi-gigabyte fetch. Set it to true once.
 
 cache.dir                  nil means stdpath("cache")/media.nvim. The key
                            carries the source file's mtime, so entries never

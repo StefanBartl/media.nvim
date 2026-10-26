@@ -90,6 +90,39 @@ return function(H)
   })
   H.eq(bin.available(), true, "available() trusts an explicit config path without stat'ing it")
 
+  -- ── Python console tools are also looked for in Python's Scripts
+  --    directories, newest version first; other names are not ───────────
+  H.eq(#bin.python_scripts("ffmpeg"), 0, "ffmpeg is not a Python tool: no Scripts dirs probed")
+  local fake_localapp = vim.fn.tempname()
+  vim.fn.mkdir(fake_localapp .. "/Programs/Python/Python310", "p")
+  vim.fn.mkdir(fake_localapp .. "/Programs/Python/Python312", "p")
+  local store_pkg = fake_localapp
+    .. "/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312"
+  vim.fn.mkdir(store_pkg, "p")
+  vim.fn.mkdir(
+    fake_localapp .. "/Packages/SomethingElse_123/LocalCache/local-packages/Python312",
+    "p"
+  )
+  local saved_localapp = vim.env.LOCALAPPDATA
+  vim.env.LOCALAPPDATA = fake_localapp
+  local probed = bin.python_scripts("whisper")
+  vim.env.LOCALAPPDATA = saved_localapp
+  vim.fn.delete(fake_localapp, "rf")
+  local newer =
+    H.index_of(probed, fake_localapp .. "/Programs/Python/Python312/Scripts/whisper.exe")
+  local older =
+    H.index_of(probed, fake_localapp .. "/Programs/Python/Python310/Scripts/whisper.exe")
+  H.ok(newer, "the per-user python.org install's Scripts dir is probed")
+  H.ok(older and newer < older, "the newest Python version is tried first")
+  H.ok(
+    H.index_of(probed, store_pkg .. "/Scripts/whisper.exe"),
+    "the Microsoft Store Python's user Scripts dir is probed"
+  )
+  for _, p in ipairs(probed) do
+    H.falsy(p:find("SomethingElse", 1, true), "other Store packages are not: " .. p)
+  end
+  H.match(probed[#probed], "/%.local/bin/whisper$", "pipx / pip --user on Unix comes last")
+
   -- Leave no trace for later specs/consumers: real, uncached lookups again.
   bin.reset("ffmpeg")
   bin.reset("ffprobe")

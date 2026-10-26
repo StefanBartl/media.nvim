@@ -12,7 +12,7 @@ lua/media/
     DEFAULTS.lua        -- every default, with the reasoning next to it
     init.lua            -- merge and hand out
   core/
-    bin.lua             -- finding ffmpeg, ffprobe, mpv, whisper-cli
+    bin.lua             -- finding ffmpeg, ffprobe, mpv, whisper-cli, whisper
     probe.lua           -- ffprobe JSON -> one flat record
     frame.lua           -- one still
     frames.lua          -- a run of stills at a fixed rate -- the decode half of playback
@@ -26,11 +26,13 @@ lua/media/
     normalize.lua       -- any file with sound, reduced to 16 kHz mono WAV
     registry.lua        -- transcription engine registry
     resolver.lua        -- engine selection and fallback-chain resolution
+    lang.lua            -- the lang= argument, normalized to a Whisper language code
     segments.lua        -- the timestamped transcript model, shared by every engine
     dispatcher.lua      -- probe -> normalize -> transcribe -> cache, behind one cancellable call
   engines/
     init.lua            -- loads and registers every built-in transcription engine
     whisper_cpp.lua     -- local transcription via whisper.cpp's `whisper-cli`
+    openai_whisper.lua  -- local transcription via OpenAI's `whisper` (PyTorch)
   output/
     init.lua            -- delivering a finished transcript: buffer | sidecar | srt | vtt
     sidecar.lua         -- `<file>.transcript.md`

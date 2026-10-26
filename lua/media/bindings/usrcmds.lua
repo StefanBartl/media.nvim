@@ -714,12 +714,17 @@ function M.register()
           {
             key = "engine",
             type = "STRING",
-            desc = "Transcription engine to try first, instead of the configured one",
+            desc = "Transcription engine to try first (whisper_cpp, openai_whisper, auto)",
           },
           {
             key = "lang",
             type = "STRING",
-            desc = "Spoken language as ISO 639-1 code, e.g. en; skips detection",
+            desc = "Spoken language: a code (de), a name (german, deutsch) or auto",
+          },
+          {
+            key = "model",
+            type = "STRING",
+            desc = "Model size (tiny, base, small, medium, large-v3, turbo) or a model file path",
           },
           {
             key = "task",
@@ -732,7 +737,7 @@ function M.register()
             desc = "Where the transcript goes: buffer, sidecar, srt or vtt",
           },
         },
-        desc = "Speech to text  :Media transcribe [path] [engine=] [lang=] [task=transcribe|translate] [out=buffer|sidecar|srt|vtt]",
+        desc = "Speech to text  :Media transcribe [path] [engine=] [lang=] [model=] [task=transcribe|translate] [out=buffer|sidecar|srt|vtt]",
         run = function(ctx)
           local path = require_path(ctx, "Media transcribe")
           if not path then return end
@@ -740,6 +745,7 @@ function M.register()
           M.run("transcribe", path, {
             engine = kv.engine,
             lang = kv.lang,
+            model = kv.model,
             task = kv.task,
             output = kv.out,
           })
@@ -757,14 +763,32 @@ function M.register()
             say("no transcription engines registered")
             return
           end
+          -- Asked about the configured model, as a real run would be —
+          -- otherwise this could say "ready" for a model the run then lacks.
+          local tcfg = require("media.config").get().transcribe
+          local ask = { model = tcfg.model }
           local lines = {}
           for _, id in ipairs(ids) do
             local engine = registry.get(id)
-            lines[#lines + 1] = ("%-14s %s"):format(
-              id,
-              engine_available(engine) and "available" or "unavailable"
-            )
+            local state = "unavailable"
+            if engine_available(engine) then
+              state = "available"
+              -- `ready` is what `engine = "auto"` asks: installed is not
+              -- the same as able to run (a whisper.cpp with no model).
+              if engine and type(engine.ready) == "function" then
+                local called, ready, why = pcall(engine.ready, ask)
+                if called and not ready then state = "available, not ready: " .. tostring(why) end
+              end
+            end
+            lines[#lines + 1] = ("%-16s %s"):format(id, state)
           end
+          -- What a `:Media transcribe` with no `engine=` would use: the
+          -- configured engine, which is not necessarily "auto".
+          local chosen = require("media.core.resolver").resolve(nil, ask)
+          lines[#lines + 1] = ("engine = %q → %s"):format(
+            tostring(tcfg.engine),
+            chosen and chosen.id or "nothing ready"
+          )
           say(table.concat(lines, "\n"))
         end,
       },

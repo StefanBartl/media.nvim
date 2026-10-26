@@ -22,8 +22,24 @@ return function(H)
     return n
   end
 
+  H.ok(registry.has("openai_whisper"), "the built-in openai_whisper engine is registered")
+  H.eq(registry.get("openai_whisper"), require("media.engines.openai_whisper"), "")
+  H.ok(
+    H.index_of(registry.ids(), "whisper_cpp") < H.index_of(registry.ids(), "openai_whisper"),
+    "in BUILTIN order, which `:Media engines` lists"
+  )
+
+  -- Every built-in engine satisfies what `registry.register` asserts, plus
+  -- the optional `ready` that `engine = "auto"` asks.
+  for _, id in ipairs({ "whisper_cpp", "openai_whisper" }) do
+    local engine = registry.get(id)
+    H.eq(type(engine.ready), "function", id .. " answers `ready`")
+    H.eq(type(engine.capabilities), "table", id .. " declares its capabilities")
+  end
+
   H.eq(count("whisper_cpp"), 1, "registered exactly once")
   engines.load_all()
   engines.load_all()
   H.eq(count("whisper_cpp"), 1, "calling load_all() again does not register it a second time")
+  H.eq(count("openai_whisper"), 1, "")
 end

@@ -154,8 +154,9 @@ end
 ---@field cancel (fun(): nil)|nil
 ---@field phase Media.Transcribe.Progress|nil  # the last step reported, replayed to a late joiner
 
---- The in-flight run for one (path, engine, lang, task) tuple, so a second
---- identical request joins it instead of starting a second `whisper-cli`.
+--- The in-flight run for one (path, engine, lang, task, model) tuple, so a
+--- second identical request joins it instead of starting a second
+--- `whisper-cli`.
 ---@type table<string, Media.Transcribe.Job>
 local inflight = {}
 
@@ -164,9 +165,29 @@ local inflight = {}
 ---@param engine string
 ---@param lang string|nil
 ---@param task string
+---@param model string|nil
 ---@return string
-local function inflight_key(path, engine, lang, task)
-  return table.concat({ path, engine, lang or "", task }, "\0")
+local function inflight_key(path, engine, lang, task, model)
+  return table.concat({ path, engine, lang or "", task, model or "" }, "\0")
+end
+
+---@internal
+--- The parts that, besides path and mtime, key a cached transcript.
+---
+--- `model` is appended only when one was asked for, so an entry written
+--- before models could be chosen — keyed `{ engine, lang, task }` — is still
+--- the hit it was for a run that asks for none. (`cache.key` walks the parts
+--- with `ipairs`, so a trailing nil would end the list anyway; spelled out so
+--- nothing depends on that.)
+---@param engine string
+---@param lang string|nil
+---@param task string
+---@param model string|nil
+---@return string[]
+local function cache_parts(engine, lang, task, model)
+  local parts = { engine, lang or "auto", task }
+  if model then parts[#parts + 1] = model end
+  return parts
 end
 
 ---@internal
@@ -230,11 +251,43 @@ function M.transcribe(path, opts, callback)
   local cfg = require("media.config").get().transcribe
 
   local requested_engine = nonempty_or(opts.engine, nil) or cfg.engine
-  local lang = nonempty_or(opts.lang, nil) or cfg.lang
   local task = nonempty_or(opts.task, nil) or cfg.task
+  local model = nonempty_or(opts.model, nil) or nonempty_or(cfg.model, nil)
   local cache_enabled = opts.cache ~= false and cfg.cache
 
-  local key = inflight_key(path, requested_engine, lang, task)
+  -- Normalized before anything else runs: `deutsch`, `German` and `de-AT`
+  -- all become `de`, and an unknown word fails now rather than after the
+  -- whole file has been decoded to WAV. `auto` here overrides a configured
+  -- language back to detection, which is why the default is applied first.
+  ---@param err string
+  ---@return Media.Transcribe.Handle
+  local function fail_fast(err)
+    local given_up = false
+    vim.schedule(function()
+      if not given_up then callback(nil, err) end
+    end)
+    return {
+      cancel = function()
+        given_up = true
+      end,
+    }
+  end
+
+  local lang, lang_err =
+    require("media.core.lang").normalize(nonempty_or(opts.lang, nil) or cfg.lang)
+  if lang_err then return fail_fast(lang_err) end
+
+  -- **Resolved up front, and its id — not the requested one — keys the run.**
+  -- With `engine = "auto"` the request says nothing about which engine will
+  -- produce the transcript: keyed by `"auto"`, a cached openai-whisper result
+  -- would keep answering after whisper.cpp became ready, and every entry
+  -- written under the old `"whisper_cpp"` default would miss. Resolving is a
+  -- few `fs_stat` calls, and it moves "no engine is ready" from after the
+  -- WAV extraction to before it. Found in review, 2026-10-26.
+  local engine, rerr = require("media.core.resolver").resolve(requested_engine, { model = model })
+  if not engine then return fail_fast(rerr or "media: no transcription engine") end
+
+  local key = inflight_key(path, engine.id, lang, task, model)
 
   ---@type Media.Transcribe.Waiter
   local waiter = { done = callback, on_phase = opts.on_phase }
@@ -254,10 +307,10 @@ function M.transcribe(path, opts, callback)
   --- consumer's UI callback, and a run that has already survived minutes of
   --- decoding must not be lost to an error in something drawing a spinner.
   ---@param phase Media.Transcribe.Phase
-  ---@param engine string|nil
-  local function fan_phase(phase, engine)
+  ---@param engine_id string|nil
+  local function fan_phase(phase, engine_id)
     ---@type Media.Transcribe.Progress
-    local info = { phase = phase, engine = engine }
+    local info = { phase = phase, engine = engine_id }
     job.phase = info
     -- Snapshot first, for the reason `fan_out` does: an `on_phase` may cancel
     -- its own handle — a float that gives up on the step it was just told
@@ -303,12 +356,6 @@ function M.transcribe(path, opts, callback)
         return
       end
 
-      local engine, rerr = require("media.core.resolver").resolve(requested_engine)
-      if not engine then
-        fan_out(nil, rerr)
-        return
-      end
-
       -- The resolved engine, not the requested one: a fallback chain means
       -- the two can differ, and the id worth showing is the one actually
       -- about to spend the next several minutes.
@@ -316,7 +363,7 @@ function M.transcribe(path, opts, callback)
 
       local engine_job = engine.transcribe(
         wav,
-        { lang = lang, task = task },
+        { lang = lang, task = task, model = model },
         -- **Scheduled onto the main loop, and this is not belt-and-braces.**
         -- An engine shells out, so its callback arrives from `vim.system`'s
         -- `on_exit` — a *fast event context*, where `vim.fn.*` is forbidden.
@@ -344,7 +391,7 @@ function M.transcribe(path, opts, callback)
               require("media.core.cache").file(
                 "transcript",
                 path,
-                { requested_engine, lang or "auto", task },
+                cache_parts(engine.id, lang, task, model),
                 "json"
               )
             )
@@ -375,7 +422,7 @@ function M.transcribe(path, opts, callback)
   local out, cerr = require("media.core.cache").file(
     "transcript",
     path,
-    { requested_engine, lang or "auto", task },
+    cache_parts(engine.id, lang, task, model),
     "json"
   )
   if not out then

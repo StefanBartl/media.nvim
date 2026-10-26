@@ -26,6 +26,10 @@ return {
     --- or a picture fails over it — transcription is the one feature that
     --- needs it.
     ["whisper-cli"] = nil,
+    --- openai-whisper's CLI (`pip install openai-whisper`), the second
+    --- transcription engine. Besides PATH and the installer shims, `core.bin`
+    --- also looks in Python's own `Scripts` directories for it.
+    whisper = nil,
   },
 
   --- Hard ceiling on any one `ffmpeg`/`ffprobe` run, in milliseconds.
@@ -145,25 +149,40 @@ return {
   },
 
   --- Turning speech into text — the transcription half of this plugin
-  --- (ROADMAP.md's "Transcription" section). One engine (`whisper_cpp`), four
-  --- output modes including SRT and VTT; the fallback chain and more engines
-  --- are later phases.
+  --- (ROADMAP.md's "Transcription" section). Two engines (`whisper_cpp`,
+  --- `openai_whisper`), four output modes including SRT and VTT.
   transcribe = {
-    --- Which registered engine `media.transcribe` tries first.
+    --- Which registered engine `media.transcribe` tries first, or `"auto"`:
+    --- the first engine in `auto` that is installed *and* has a usable model
+    --- (`media.core.resolver`'s note says why "installed" alone is not
+    --- enough). `"auto"` is the default because installing any one engine
+    --- should be all it takes.
     ---@type string
-    engine = "whisper_cpp",
+    engine = "auto",
 
-    --- Tried in order after `engine`, when it reports itself unavailable.
-    --- Empty for now: phase 0 ships exactly one engine, so there is nothing
-    --- yet to fall back to — this is where `faster_whisper`/`openai_api`
-    --- join in a later phase.
+    --- The order `engine = "auto"` tries. whisper.cpp first: no Python, and
+    --- several times faster than the PyTorch reference on a CPU.
+    ---@type string[]
+    auto = { "whisper_cpp", "openai_whisper" },
+
+    --- Tried in order after `engine` (or after `auto`'s list), when it
+    --- reports itself unavailable.
     ---@type string[]
     fallback = {},
 
-    --- Forced language (an ISO 639-1 code, e.g. `"en"`), or `nil` to let the
-    --- engine detect it.
+    --- Forced language, or `nil` to let the engine detect it. Anything
+    --- `media.core.lang` understands: an ISO 639-1 code (`"de"`), a region
+    --- tag (`"de-AT"`), or a name (`"german"`, `"deutsch"`).
     ---@type string|nil
     lang = nil,
+
+    --- The model to use, engine-neutral: a size name (`"tiny"`, `"base"`,
+    --- `"small"`, `"medium"`, `"large-v3"`, `"turbo"`, …) that each engine
+    --- maps to its own form — openai-whisper takes the name, whisper.cpp
+    --- looks for `ggml-<name>.bin` — or a path to a model file. `nil` leaves
+    --- it to each engine's own `model` below.
+    ---@type string|nil
+    model = nil,
 
     --- `"transcribe"` keeps the source language; `"translate"` asks the
     --- engine for English, the only target language an engine like
@@ -208,6 +227,37 @@ return {
       --- ROADMAP.md's "Risks and known traps".
       ---@type string|nil
       model = nil,
+
+      --- Where `model = "<name>"` looks for `ggml-<name>.bin`, before the
+      --- directory of `model` above. `nil` means only that directory.
+      ---@type string|nil
+      model_dir = nil,
+    },
+
+    openai_whisper = {
+      --- Model name (or a `.pt` checkpoint path) when neither the call nor
+      --- `transcribe.model` names one. `nil` means `"turbo"`, the CLI's own
+      --- default — written out in the engine because the download check has
+      --- to know which file that is.
+      ---@type string|nil
+      model = nil,
+
+      --- whisper's `--model_dir`. `nil` is the CLI's default,
+      --- `~/.cache/whisper` (`$XDG_CACHE_HOME/whisper` when set).
+      ---@type string|nil
+      model_dir = nil,
+
+      --- whisper's `--device` (`"cpu"`, `"cuda"`). `nil` lets it pick CUDA
+      --- when PyTorch sees a GPU.
+      ---@type string|nil
+      device = nil,
+
+      --- Whether a model that is not downloaded yet may be fetched by
+      --- whisper on first use. `false` turns that into an error naming the
+      --- file and its size class, because a model is up to 3 GB and this
+      --- plugin never downloads one unasked (ROADMAP.md's "Risks").
+      ---@type boolean
+      allow_download = false,
     },
   },
 

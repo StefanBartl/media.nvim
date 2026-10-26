@@ -1,5 +1,5 @@
 ---@module 'media.core.bin'
----@brief Finding `ffmpeg` and `ffprobe`.
+---@brief Finding `ffmpeg`, `ffprobe` and the other external tools.
 ---@description
 --- **Why this is not one `vim.fn.executable` call.** On Windows, "installed"
 --- and "reachable" routinely come apart, and the two most common ways to
@@ -51,6 +51,72 @@ local function well_known(name)
     "/opt/homebrew/bin/" .. name,
     "/usr/local/bin/" .. name,
   }
+end
+
+--- Binaries that are Python console entry points (`pip install
+--- openai-whisper` puts `whisper` there), and therefore land in a Python
+--- `Scripts` directory rather than an installer's shim directory.
+---@type table<string, true>
+local PYTHON_TOOLS = { whisper = true, ["whisper-ctranslate2"] = true }
+
+--- The subdirectories of `root`, or none when it does not exist.
+---@param root string
+---@return string[]
+local function subdirs(root)
+  local out = {}
+  local handle = uv.fs_scandir(root)
+  if not handle then return out end
+  while true do
+    local entry, kind = uv.fs_scandir_next(handle)
+    if not entry then break end
+    if kind == "directory" then out[#out + 1] = root .. "/" .. entry end
+  end
+  table.sort(out)
+  return out
+end
+
+--- Where pip and pipx put a console entry point, for the names in
+--- `PYTHON_TOOLS`: the per-user python.org install
+--- (`%LOCALAPPDATA%/Programs/Python/Python3xx/Scripts`), `pip install --user`
+--- (`%APPDATA%/Python/Python3xx/Scripts`), and pipx / `pip --user` on Unix
+--- (`~/.local/bin`). The same PATH problem as winget's: the installer adds the
+--- directory to the user PATH, and an editor started before that never sees it.
+---
+--- Public for the reason `frame.args` is: which paths get probed is the whole
+--- decision, and it should be assertable without a Python anywhere.
+---@param name string
+---@return string[]
+function M.python_scripts(name)
+  if not PYTHON_TOOLS[name] then return {} end
+  local home = uv.os_homedir() or ""
+  local out = {}
+  local roots = {
+    (os.getenv("LOCALAPPDATA") or "") .. "/Programs/Python",
+    (os.getenv("APPDATA") or "") .. "/Python",
+  }
+  for _, root in ipairs(roots) do
+    -- Newest version last in a sorted listing; tried first.
+    local versions = subdirs(root)
+    for i = #versions, 1, -1 do
+      out[#out + 1] = versions[i] .. "/Scripts/" .. name .. ".exe"
+    end
+  end
+  -- The Microsoft Store Python keeps `pip install --user` scripts under its
+  -- package directory: `Packages/PythonSoftwareFoundation.Python.3.xx_<id>/
+  -- LocalCache/local-packages/Python3xx/Scripts`.
+  local packages = (os.getenv("LOCALAPPDATA") or "") .. "/Packages"
+  local store = subdirs(packages)
+  for i = #store, 1, -1 do
+    if store[i]:find("/PythonSoftwareFoundation%.Python%.[^/]*$") then
+      local versions = subdirs(store[i] .. "/LocalCache/local-packages")
+      for j = #versions, 1, -1 do
+        out[#out + 1] = versions[j] .. "/Scripts/" .. name .. ".exe"
+      end
+    end
+  end
+  out[#out + 1] = home .. "/.local/bin/" .. name .. ".exe"
+  out[#out + 1] = home .. "/.local/bin/" .. name
+  return out
 end
 
 ---@class Media.Bin.CacheEntry
@@ -105,7 +171,9 @@ function M.find(name)
     return name
   end
 
-  for _, candidate in ipairs(well_known(name)) do
+  local candidates = well_known(name)
+  vim.list_extend(candidates, M.python_scripts(name))
+  for _, candidate in ipairs(candidates) do
     if is_file(candidate) then
       resolved[name] = { cfg = configured, val = candidate }
       return candidate

@@ -5,21 +5,24 @@ to be useful on its own.
 
 ```lua
 require("media").setup({
-  bin = { ffmpeg = nil, ffprobe = nil, mpv = nil, ["whisper-cli"] = nil },
+  bin = { ffmpeg = nil, ffprobe = nil, mpv = nil, ["whisper-cli"] = nil, whisper = nil },
   timeout_ms = 15000,
   frame = { at = "10%", width = 800 },
   sheet = { rows = 3, cols = 4, width = 1200, margin = 4, timeout_ms = 120000 },
   waveform = { width = 1200, height = 300, colors = "#9cdcfe", timeout_ms = 120000 },
   transcribe = {
-    engine = "whisper_cpp",
+    engine = "auto",
+    auto = { "whisper_cpp", "openai_whisper" },
     fallback = {},
     lang = nil,
+    model = nil,
     task = "transcribe",
     output = "buffer",
     cache = true,
     timeout_ms = 0,
     normalize_timeout_ms = 120000,
-    whisper_cpp = { model = nil },
+    whisper_cpp = { model = nil, model_dir = nil },
+    openai_whisper = { model = nil, model_dir = nil, device = nil, allow_download = false },
   },
   cache = { enabled = true, dir = nil, max_age_days = 30, max_mb = 2048 },
   player = nil,
@@ -47,11 +50,15 @@ the summary.
 | `bin.ffprobe` | `string\|nil` | `nil` |
 | `bin.mpv` | `string\|nil` | `nil` |
 | `bin["whisper-cli"]` | `string\|nil` | `nil` |
+| `bin.whisper` | `string\|nil` | `nil` |
 
 An explicit path, for the case where the binary is installed but not on PATH.
 The plugin probes winget's and scoop's shim directories, chocolatey's `bin`,
-`C:/ffmpeg/bin`, `/opt/homebrew/bin` and `/usr/local/bin` by itself — this is the
-escape hatch for everything it does not guess. `mpv` is looked up the same way
+`C:/ffmpeg/bin`, `/opt/homebrew/bin` and `/usr/local/bin` by itself — and, for
+openai-whisper's `whisper`, Python's own `Scripts` directories
+(`%LOCALAPPDATA%/Programs/Python/Python3xx`, `%APPDATA%/Python/Python3xx`,
+newest first) and `~/.local/bin` (pipx). This is the escape hatch for
+everything it does not guess. `mpv` is looked up the same way
 as `ffmpeg`/`ffprobe` and is optional: it is only used for `media.audio`, and
 its absence just means a played run stays silent.
 
@@ -215,18 +222,48 @@ Without lib.nvim installed there is no indicator and the command says
 
 | Key | Type | Default |
 | --- | --- | --- |
-| `transcribe.engine` | `string` | `"whisper_cpp"` |
+| `transcribe.engine` | `string` | `"auto"` |
+| `transcribe.auto` | `string[]` | `{ "whisper_cpp", "openai_whisper" }` |
 | `transcribe.fallback` | `string[]` | `{}` |
 | `transcribe.lang` | `string\|nil` | `nil` — let the engine detect it |
+| `transcribe.model` | `string\|nil` | `nil` — each engine's own default |
 | `transcribe.task` | `"transcribe"\|"translate"` | `"transcribe"` |
 | `transcribe.output` | `"buffer"\|"sidecar"\|"srt"\|"vtt"` | `"buffer"` |
 | `transcribe.cache` | `boolean` | `true` |
 | `transcribe.timeout_ms` | `integer` | `0` — no timeout |
 | `transcribe.normalize_timeout_ms` | `integer` | `120000` |
 | `transcribe.whisper_cpp.model` | `string\|nil` | `nil` |
+| `transcribe.whisper_cpp.model_dir` | `string\|nil` | `nil` |
+| `transcribe.openai_whisper.model` | `string\|nil` | `nil` — `"turbo"` |
+| `transcribe.openai_whisper.model_dir` | `string\|nil` | `nil` — `~/.cache/whisper` |
+| `transcribe.openai_whisper.device` | `string\|nil` | `nil` — CUDA when PyTorch sees one |
+| `transcribe.openai_whisper.allow_download` | `boolean` | `false` |
 
-One engine so far (ROADMAP.md's "Transcription" section), with `fallback`
-empty because there is nothing yet to fall back to.
+Two engines: `whisper_cpp` (whisper.cpp's `whisper-cli`) and
+`openai_whisper` (OpenAI's `whisper`, `pip install openai-whisper`).
+`engine = "auto"` — the default — takes the first engine in `auto` that is
+installed *and* has a usable model, so installing either one is enough;
+name an engine instead to always use that one. `fallback` is tried after
+either. See [commands.md](commands.md#media-transcribe-path-engine-lang-model-task-out)
+for how `auto` decides.
+
+`lang` takes a code, a region tag or a name — `"de"`, `"de-AT"`, `"german"`
+and `"deutsch"` are the same setting — and is checked before a run starts.
+
+`model` is engine-neutral: a size name (`"medium"`, `"large-v3"`, `"turbo"`)
+or a model file path. openai-whisper takes the name as it is; whisper.cpp
+looks for `ggml-<name>.bin` in `whisper_cpp.model_dir`, then beside
+`whisper_cpp.model`. Unset, each engine uses its own `model` below.
+
+A typical setup for one engine and German meetings:
+
+```lua
+transcribe = {
+  lang = "de",
+  model = "medium",
+  openai_whisper = { allow_download = true },
+},
+```
 
 `output` picks where a finished transcript goes: `"buffer"` a scratch
 window, `"sidecar"` a `<file>.transcript.md`, and `"srt"`/`"vtt"` subtitle
@@ -246,7 +283,20 @@ to be an absolute path to a GGML `.bin` file you already have.
 `:checkhealth media` reports whether `whisper-cli` is on PATH and whether
 this points at a file that exists, but never fetches one.
 
-`"translate"` asks whisper.cpp for its own translate task, which only ever
+openai-whisper downloads a model the first time its name is used (`tiny`
+75 MB … `large-v3` 2.9 GB, `turbo` 1.6 GB). This plugin checks
+`openai_whisper.model_dir` for the file first and refuses the run while
+`allow_download` is `false`, naming the file it was looking for — set it to
+`true` once, or run `whisper --model <name>` yourself. `:checkhealth media`
+lists the models already there. The check is "the file exists": a download
+that was cut off leaves a file whose checksum whisper rejects, and whisper
+then fetches it again regardless of this setting — delete the file to be
+sure. A misspelt name (`meduim`) is reported as unknown, not as missing.
+
+`turbo`, the default model, was not trained for `task = "translate"` and
+mostly hands back the source language; use `medium` or `large-v3` for that.
+
+`"translate"` asks the engine for its own translate task, which only ever
 produces **English**. Every other target language is
 [language.nvim](https://github.com/StefanBartl/language.nvim)'s job,
 downstream of this plugin, not a `task` value here.
