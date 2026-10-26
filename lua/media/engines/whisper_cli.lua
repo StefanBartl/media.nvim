@@ -52,19 +52,60 @@ end
 --- `with_ffmpeg`, ffmpeg's directory in front of PATH when `core.bin`
 --- resolved it to an absolute path (openai-whisper decodes through ffmpeg
 --- from PATH; faster-whisper does not need it).
+---
+--- With `bin` inside a **conda environment** (its prefix holds `conda-meta/`),
+--- the directories `conda activate` would put on PATH go in front too. An
+--- unactivated conda Python on Windows cannot find the DLLs of numpy, torch,
+--- ctranslate2 or ssl — they live in `<prefix>/Library/bin` — and dies with an
+--- ImportError or 0xC0000135 instead of transcribing. `core.bin` probes
+--- `~/miniconda3` & co. without activation, so this is the half that makes
+--- that safe. Found in review, 2026-10-26.
 ---@param with_ffmpeg boolean
+---@param bin string|nil  # the resolved binary, for the conda check
 ---@return table<string, string>
-function M.child_env(with_ffmpeg)
+function M.child_env(with_ffmpeg, bin)
   local env = { PYTHONIOENCODING = "utf-8", PYTHONUTF8 = "1" }
+  local windows = vim.fn.has("win32") == 1
+  local front = {}
+
   if with_ffmpeg then
     local ffmpeg = require("media.core.bin").find("ffmpeg")
-    if ffmpeg and ffmpeg:find("[/\\]") then
-      local dir = vim.fs.dirname(ffmpeg)
-      local sep = vim.fn.has("win32") == 1 and ";" or ":"
-      env.PATH = dir .. sep .. (os.getenv("PATH") or "")
-    end
+    if ffmpeg and ffmpeg:find("[/\\]") then front[#front + 1] = vim.fs.dirname(ffmpeg) end
+  end
+
+  vim.list_extend(front, M.conda_path(bin, windows))
+
+  if #front > 0 then
+    local sep = windows and ";" or ":"
+    env.PATH = table.concat(front, sep) .. sep .. (os.getenv("PATH") or "")
   end
   return env
+end
+
+--- The PATH entries `conda activate` adds for the environment `bin` lives in,
+--- or none when `bin` is not inside one (no `conda-meta/` in its prefix).
+---
+--- Pure apart from one `fs_stat`, and public so the order is assertable.
+---@param bin string|nil
+---@param windows boolean
+---@return string[]
+function M.conda_path(bin, windows)
+  if type(bin) ~= "string" or not bin:find("[/\\]") then return {} end
+  local dir = vim.fs.dirname(bin)
+  local leaf = vim.fs.basename(dir)
+  if leaf ~= "Scripts" and leaf ~= "bin" then return {} end
+  local prefix = vim.fs.dirname(dir)
+  if not uv.fs_stat(prefix .. "/conda-meta") then return {} end
+  if not windows then return { prefix .. "/bin" } end
+  -- conda's own activation order on Windows.
+  return {
+    prefix,
+    prefix .. "/Library/mingw-w64/bin",
+    prefix .. "/Library/usr/bin",
+    prefix .. "/Library/bin",
+    prefix .. "/Scripts",
+    prefix .. "/bin",
+  }
 end
 
 ---@param dir string

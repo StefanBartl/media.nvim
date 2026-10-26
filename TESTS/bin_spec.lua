@@ -149,6 +149,107 @@ return function(H)
     "miniconda's base is among them"
   )
 
+  -- ── version order, not byte order: 3.13 is newer than 3.9 ─────────────
+  do
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root .. "/Programs/Python/Python39", "p")
+    vim.fn.mkdir(root .. "/Programs/Python/Python313", "p")
+    local saved = vim.env.LOCALAPPDATA
+    vim.env.LOCALAPPDATA = root
+    local list = bin.python_scripts("whisper")
+    vim.env.LOCALAPPDATA = saved
+    vim.fn.delete(root, "rf")
+    local v313 = H.index_of(list, root .. "/Programs/Python/Python313/Scripts/whisper.exe")
+    local v39 = H.index_of(list, root .. "/Programs/Python/Python39/Scripts/whisper.exe")
+    H.ok(v313 and v39 and v313 < v39, "Python313 is tried before Python39")
+  end
+
+  -- ── an unset or empty variable never becomes a drive-root root ───────
+  -- (`"" .. "/Programs/Python"` is the root of the current drive on Windows,
+  -- a directory any local user may create.) Asserted on the roots, before
+  -- the scan: a scanned candidate only appears when the directory exists.
+  do
+    local saved_l, saved_a = vim.env.LOCALAPPDATA, vim.env.APPDATA
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root .. "/Python/Python312", "p")
+    vim.env.LOCALAPPDATA, vim.env.APPDATA = nil, root
+    local roots = bin.python_roots()
+    local only_user = bin.python_scripts("whisper")
+    vim.env.LOCALAPPDATA, vim.env.APPDATA = "", ""
+    local empty_roots = bin.python_roots()
+    local list = bin.candidates("whisper")
+    vim.env.LOCALAPPDATA, vim.env.APPDATA = saved_l, saved_a
+    vim.fn.delete(root, "rf")
+    H.eq(roots.programs, nil, "unset LOCALAPPDATA: no python.org root")
+    H.eq(roots.store, nil, "and no Store root")
+    H.ok(
+      H.index_of(only_user, root .. "/Python/Python312/Scripts/whisper.exe"),
+      "APPDATA's root is still walked when LOCALAPPDATA is missing"
+    )
+    H.eq(empty_roots.programs, nil, "an empty variable is no root either")
+    H.eq(empty_roots.user, nil, "")
+    for _, p in ipairs(list) do
+      H.falsy(
+        p:match("^/Programs")
+          or p:match("^/Python")
+          or p:match("^/Packages")
+          or p:match("^/Microsoft"),
+        "no candidate under the drive root from an empty variable: " .. p
+      )
+    end
+  end
+
+  -- ── the active venv comes before the installer shims ─────────────────
+  do
+    local outer_venv = vim.env.VIRTUAL_ENV
+    vim.env.VIRTUAL_ENV = "E:/__bin_spec__/venv"
+    local list = bin.candidates("whisper")
+    vim.env.VIRTUAL_ENV = outer_venv
+    local venv = H.index_of(list, "E:/__bin_spec__/venv/Scripts/whisper.exe")
+    local choco = H.index_of(list, "C:/ProgramData/chocolatey/bin/whisper.exe")
+    H.ok(venv and choco and venv < choco, "VIRTUAL_ENV wins over a global shim")
+  end
+
+  -- ── a venv activated after a cached miss is seen without reset() ─────
+  do
+    local saved = {
+      PATH = vim.env.PATH,
+      LOCALAPPDATA = vim.env.LOCALAPPDATA,
+      APPDATA = vim.env.APPDATA,
+      VIRTUAL_ENV = vim.env.VIRTUAL_ENV,
+      CONDA_PREFIX = vim.env.CONDA_PREFIX,
+    }
+    local empty = vim.fn.tempname()
+    vim.fn.mkdir(empty, "p")
+    local venv = vim.fn.tempname()
+    vim.fn.mkdir(venv .. "/Scripts", "p")
+    vim.fn.mkdir(venv .. "/bin", "p")
+    vim.fn.writefile({ "x" }, venv .. "/Scripts/whisper.exe")
+    vim.fn.writefile({ "x" }, venv .. "/bin/whisper")
+    local ok_run, err_run = pcall(function()
+      -- Nothing on PATH and no Python roots: a real install cannot answer.
+      vim.env.PATH = empty
+      vim.env.LOCALAPPDATA, vim.env.APPDATA = empty, empty
+      vim.env.VIRTUAL_ENV, vim.env.CONDA_PREFIX = nil, nil
+      config.setup({})
+      bin.reset("whisper")
+      H.eq(bin.find("whisper"), nil, "no whisper anywhere: a cached miss")
+      vim.env.VIRTUAL_ENV = venv
+      local found = bin.find("whisper")
+      H.ok(
+        found == venv .. "/Scripts/whisper.exe" or found == venv .. "/bin/whisper",
+        "the newly active venv is seen without reset(): " .. tostring(found)
+      )
+    end)
+    for k, v in pairs(saved) do
+      vim.env[k] = v
+    end
+    bin.reset("whisper")
+    vim.fn.delete(empty, "rf")
+    vim.fn.delete(venv, "rf")
+    assert(ok_run, err_run)
+  end
+
   -- Leave no trace for later specs/consumers: real, uncached lookups again.
   bin.reset("ffmpeg")
   bin.reset("ffprobe")

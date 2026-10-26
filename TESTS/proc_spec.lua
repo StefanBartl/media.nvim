@@ -47,6 +47,8 @@ return function(H)
   )
   H.match(proc.exit_message("ffmpeg", 3221225781), "DLL it needs was not found", "")
   H.match(proc.exit_message("whisper-cli", 3221225501), "AVX2", "an instruction-set mismatch")
+  H.match(proc.exit_message("x", 3221225595), "wrong format", "0xC000007B is the image format")
+  H.match(proc.exit_message("x", 3221225794), "failed to initialise", "0xC0000142 is DLL init")
   H.eq(proc.exit_message("ffmpeg", 1), "ffmpeg exited with 1", "an ordinary code stays as it was")
   H.eq(proc.exit_message("ffmpeg", nil), "ffmpeg exited with nil", "")
 end

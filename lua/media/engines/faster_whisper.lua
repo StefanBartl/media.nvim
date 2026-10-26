@@ -374,7 +374,7 @@ function M.transcribe(wav_path, opts, callback)
   return cli.run({
     wav_path = wav_path,
     label = "whisper-ctranslate2",
-    env = cli.child_env(false),
+    env = cli.child_env(false, bin),
     failure_reason = M.failure_reason,
     parse = function(doc)
       return M.from_json(doc, model)

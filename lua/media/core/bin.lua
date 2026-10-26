@@ -41,16 +41,21 @@ local uv = vim.uv or vim.loop
 ---@param name string binary name, e.g. "ffmpeg", "ffprobe", "mpv"
 ---@return string[]
 local function well_known(name)
-  local home = uv.os_homedir() or ""
-  local localapp = os.getenv("LOCALAPPDATA") or ""
-  return {
-    localapp .. "/Microsoft/WinGet/Links/" .. name .. ".exe",
-    home .. "/scoop/shims/" .. name .. ".exe",
+  local out = {}
+  -- An unset or empty variable is skipped, never used as "" — see `env_root`.
+  local localapp = os.getenv("LOCALAPPDATA")
+  if localapp and localapp ~= "" then
+    out[#out + 1] = localapp .. "/Microsoft/WinGet/Links/" .. name .. ".exe"
+  end
+  local home = uv.os_homedir()
+  if home and home ~= "" then out[#out + 1] = home .. "/scoop/shims/" .. name .. ".exe" end
+  vim.list_extend(out, {
     "C:/ProgramData/chocolatey/bin/" .. name .. ".exe",
     "C:/ffmpeg/bin/" .. name .. ".exe",
     "/opt/homebrew/bin/" .. name,
     "/usr/local/bin/" .. name,
-  }
+  })
+  return out
 end
 
 --- Binaries that are Python console entry points (`pip install
@@ -71,8 +76,63 @@ local function subdirs(root)
     if not entry then break end
     if kind == "directory" then out[#out + 1] = root .. "/" .. entry end
   end
-  table.sort(out)
+  -- Version order, not byte order: `Python39` sorts after `Python313` as
+  -- bytes, so "newest last" picked 3.9 over 3.13. Every digit run is padded
+  -- before comparing. Found in review, 2026-10-26.
+  local function key(s)
+    return (s:gsub("%d+", function(d)
+      return ("%012d"):format(tonumber(d) or 0)
+    end))
+  end
+  table.sort(out, function(a, b)
+    return key(a) < key(b)
+  end)
   return out
+end
+
+--- `os.getenv(var)`, or nil when it is unset **or empty**. An empty value
+--- must not become a root: `"" .. "/miniconda3"` is `/miniconda3`, which on
+--- Windows is the root of the current drive — a directory any local user may
+--- create, so a planted `whisper.exe` there would be run. Found in review,
+--- 2026-10-26.
+---@param var string
+---@return string|nil
+local function env_root(var)
+  local value = os.getenv(var)
+  if type(value) == "string" and value ~= "" then return value end
+  return nil
+end
+
+---@return string|nil
+local function home_root()
+  local home = uv.os_homedir()
+  if type(home) == "string" and home ~= "" then return home end
+  return nil
+end
+
+---@class Media.Bin.PythonRoots
+---@field programs string|nil  # per-user python.org installs: `<root>/Python3xx/Scripts`
+---@field user string|nil      # `pip install --user`: `<root>/Python3xx/Scripts`
+---@field store string|nil     # Microsoft Store packages directory
+---@field home string|nil      # for `~/.local/bin` and the conda bases
+
+--- The directories the Python search starts from, before any of them is
+--- scanned; nil for each whose variable is unset or empty (see `env_root`).
+---
+--- Public and separate from the scan so the "never a drive-root path" rule is
+--- assertable: a root from an empty variable only shows up as a candidate when
+--- that directory exists at the drive root, which a test cannot (and must not)
+--- arrange.
+---@return Media.Bin.PythonRoots
+function M.python_roots()
+  local localapp = env_root("LOCALAPPDATA")
+  local appdata = env_root("APPDATA")
+  return {
+    programs = localapp and (localapp .. "/Programs/Python") or nil,
+    user = appdata and (appdata .. "/Python") or nil,
+    store = localapp and (localapp .. "/Packages") or nil,
+    home = home_root(),
+  }
 end
 
 --- Where pip and pipx put a console entry point, for the names in
@@ -90,7 +150,8 @@ end
 ---@return string[]
 function M.python_scripts(name)
   if not PYTHON_TOOLS[name] then return {} end
-  local home = uv.os_homedir() or ""
+  local roots = M.python_roots()
+  local home = roots.home
   local out = {}
 
   -- An environment prefix keeps its scripts in `Scripts/` on Windows and in
@@ -104,25 +165,24 @@ function M.python_scripts(name)
 
   -- First the environment the editor was started in: an active venv or conda
   -- environment is the one the user means, over any global install.
-  add_env(os.getenv("VIRTUAL_ENV"))
-  add_env(os.getenv("CONDA_PREFIX"))
+  add_env(env_root("VIRTUAL_ENV"))
+  add_env(env_root("CONDA_PREFIX"))
 
-  local roots = {
-    (os.getenv("LOCALAPPDATA") or "") .. "/Programs/Python",
-    (os.getenv("APPDATA") or "") .. "/Python",
-  }
-  for _, root in ipairs(roots) do
-    -- Newest version last in a sorted listing; tried first.
-    local versions = subdirs(root)
-    for i = #versions, 1, -1 do
-      out[#out + 1] = versions[i] .. "/Scripts/" .. name .. ".exe"
+  -- `or false`, not a bare nil: `ipairs` stops at the first nil, so an unset
+  -- LOCALAPPDATA would otherwise skip APPDATA's root as well.
+  for _, root in ipairs({ roots.programs or false, roots.user or false }) do
+    if root then
+      -- Newest version last in a sorted listing; tried first.
+      local versions = subdirs(root)
+      for i = #versions, 1, -1 do
+        out[#out + 1] = versions[i] .. "/Scripts/" .. name .. ".exe"
+      end
     end
   end
   -- The Microsoft Store Python keeps `pip install --user` scripts under its
   -- package directory: `Packages/PythonSoftwareFoundation.Python.3.xx_<id>/
   -- LocalCache/local-packages/Python3xx/Scripts`.
-  local packages = (os.getenv("LOCALAPPDATA") or "") .. "/Packages"
-  local store = subdirs(packages)
+  local store = roots.store and subdirs(roots.store) or {}
   for i = #store, 1, -1 do
     if store[i]:find("/PythonSoftwareFoundation%.Python%.[^/]*$") then
       local versions = subdirs(store[i] .. "/LocalCache/local-packages")
@@ -131,18 +191,46 @@ function M.python_scripts(name)
       end
     end
   end
-  out[#out + 1] = home .. "/.local/bin/" .. name .. ".exe"
-  out[#out + 1] = home .. "/.local/bin/" .. name
-  -- A conda base install that was never activated for this process: the
-  -- three installers' default per-user prefixes.
-  for _, base in ipairs({ "miniconda3", "anaconda3", "miniforge3" }) do
-    add_env(home .. "/" .. base)
+  if home then
+    out[#out + 1] = home .. "/.local/bin/" .. name .. ".exe"
+    out[#out + 1] = home .. "/.local/bin/" .. name
+    -- A conda base install that was never activated for this process: the
+    -- three installers' default per-user prefixes. Running it unactivated is
+    -- what `media.engines.whisper_cli.child_env` makes safe on Windows.
+    for _, base in ipairs({ "miniconda3", "anaconda3", "miniforge3" }) do
+      add_env(home .. "/" .. base)
+    end
   end
   return out
 end
 
+--- Every location `find` probes after PATH, in order: the Python locations
+--- first — so an active venv really does win over a global install, as its
+--- comment always claimed (found in review, 2026-10-26: the installer shims
+--- used to come first) — then the installer shim directories.
+---
+--- Public so the order is assertable.
+---@param name string
+---@return string[]
+function M.candidates(name)
+  local out = M.python_scripts(name)
+  vim.list_extend(out, well_known(name))
+  return out
+end
+
+--- The part of the cache key beyond the configured path: for a Python tool,
+--- the active environment. A venv selector that sets `VIRTUAL_ENV` after a
+--- cached miss must be seen on the next `find`, without `reset()`.
+---@param name string
+---@return string
+local function env_signature(name)
+  if not PYTHON_TOOLS[name] then return "" end
+  return (os.getenv("VIRTUAL_ENV") or "") .. "\0" .. (os.getenv("CONDA_PREFIX") or "")
+end
+
 ---@class Media.Bin.CacheEntry
 ---@field cfg string|nil     # `config.get().bin[name]` at the time this was resolved
+---@field env string         # `env_signature(name)` at that time
 ---@field val string|false   # false = "looked for, not found"
 
 ---@type table<string, Media.Bin.CacheEntry>
@@ -171,38 +259,40 @@ end
 ---@return string|nil
 function M.find(name)
   local configured = require("media.config").get().bin[name]
+  local env = env_signature(name)
 
   local cached = resolved[name]
-  if cached ~= nil and cached.cfg == configured then return cached.val or nil end
+  if cached ~= nil and cached.cfg == configured and cached.env == env then
+    return cached.val or nil
+  end
+
+  ---@param val string|false
+  local function remember(val)
+    resolved[name] = { cfg = configured, env = env, val = val }
+  end
 
   if type(configured) == "string" and configured ~= "" then
     -- An explicit path is honoured as given, including when it does not exist:
     -- the error the user then gets names their own setting, which is a better
     -- place to start looking than "ffmpeg not found".
-    resolved[name] = { cfg = configured, val = configured }
+    remember(configured)
     return configured
   end
 
   local ok, executable = pcall(require, "lib.nvim.cross.executable")
-  if ok and executable.exists(name) then
-    resolved[name] = { cfg = configured, val = name }
-    return name
-  end
-  if not ok and vim.fn.executable(name) == 1 then
-    resolved[name] = { cfg = configured, val = name }
+  if (ok and executable.exists(name)) or (not ok and vim.fn.executable(name) == 1) then
+    remember(name)
     return name
   end
 
-  local candidates = well_known(name)
-  vim.list_extend(candidates, M.python_scripts(name))
-  for _, candidate in ipairs(candidates) do
+  for _, candidate in ipairs(M.candidates(name)) do
     if is_file(candidate) then
-      resolved[name] = { cfg = configured, val = candidate }
+      remember(candidate)
       return candidate
     end
   end
 
-  resolved[name] = { cfg = configured, val = false }
+  remember(false)
   return nil
 end
 

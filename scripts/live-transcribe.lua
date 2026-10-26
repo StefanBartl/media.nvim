@@ -16,9 +16,11 @@
 
 local here = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") or "./"
 local repo = vim.fs.normalize(here .. "..")
-vim.opt.rtp:append(repo)
+-- Prepended, not appended: an installed copy of media.nvim or lib.nvim earlier
+-- on the runtimepath would otherwise be the one that runs.
 local lib = os.getenv("LIB_NVIM_DIR") or (repo .. "/../lib.nvim")
-if vim.uv.fs_stat(lib) then vim.opt.rtp:append(lib) end
+if vim.uv.fs_stat(lib) then vim.opt.rtp:prepend(lib) end
+vim.opt.rtp:prepend(repo)
 
 local file = arg[1]
 if not file then
@@ -28,10 +30,37 @@ if not file then
   os.exit(2)
 end
 
+--- Every key this script understands. A typo (`lang auto`, `engin=…`) must
+--- stop the run, not silently fall back to a default and measure the wrong
+--- thing.
+---@type table<string, true>
+local KEYS = {
+  engine = true,
+  lang = true,
+  model = true,
+  task = true,
+  allow_download = true,
+  ffmpeg = true,
+  ffprobe = true,
+  ["whisper-cli"] = true,
+  whisper = true,
+  ["whisper-ctranslate2"] = true,
+  whisper_cpp_model_dir = true,
+}
+
 local kv = {}
 for i = 2, #arg do
   local k, v = arg[i]:match("^([%w_%-]+)=(.*)$")
-  if k then kv[k] = v end
+  if not k or not KEYS[k] then
+    io.stderr:write(
+      ("unknown argument %q — expected key=value with one of the keys in the header\n"):format(
+        arg[i]
+      )
+    )
+    os.exit(2)
+  end
+  -- `model=` (empty) means "not given", as it does for :Media transcribe.
+  if v ~= "" then kv[k] = v end
 end
 
 local bin = {}
@@ -86,6 +115,13 @@ vim.wait(24 * 3600 * 1000, function()
   return done
 end, 200)
 local secs = (vim.uv.hrtime() - started) / 1e9
+
+if not done then
+  -- `vim.wait` gave up (the day-long ceiling, or an interrupt): there is no
+  -- result to report, and indexing it would end in a traceback.
+  say(("error after %.1fs: no result — timed out or interrupted"):format(secs))
+  os.exit(1)
+end
 
 if result.t then
   local t = result.t

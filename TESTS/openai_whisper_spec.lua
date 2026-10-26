@@ -139,6 +139,29 @@ return function(H)
   )
   H.eq(engine.failure_reason(nil, nil), nil, "")
 
+  -- ── a conda environment gets what `conda activate` would put on PATH ──
+  do
+    local cli = require("media.engines.whisper_cli")
+    local prefix = vim.fn.tempname()
+    vim.fn.mkdir(prefix .. "/conda-meta", "p")
+    vim.fn.mkdir(prefix .. "/Scripts", "p")
+    local in_conda = prefix .. "/Scripts/whisper.exe"
+    -- `vim.fs.dirname` hands back `/` separators on Windows too.
+    local np = vim.fs.normalize(prefix)
+    local win = cli.conda_path(in_conda, true)
+    H.eq(win[1], np, "the prefix first, as conda activates it")
+    H.ok(H.index_of(win, np .. "/Library/bin"), "Library/bin, where the DLLs live")
+    H.eq_list(cli.conda_path(prefix .. "/bin/whisper", false), { np .. "/bin" }, "Unix: bin")
+    H.eq(#cli.conda_path("E:/plain/Scripts/whisper.exe", true), 0, "no conda-meta: nothing added")
+    H.eq(#cli.conda_path("whisper", true), 0, "a bare command: nothing added")
+    local env = cli.child_env(false, in_conda)
+    H.ok(
+      env.PATH and env.PATH:find(np .. "/Library/bin", 1, true),
+      "child_env puts it in front of the child's PATH"
+    )
+    vim.fn.delete(prefix, "rf")
+  end
+
   -- ── transcribe(): the whole process half, against a fake vim.system ───
   -- No Python on a CI runner, so `vim.system` is swapped for a double that
   -- plays the CLI: it reads `--output_dir` from the argv and writes (or does
