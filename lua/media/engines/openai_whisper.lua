@@ -246,53 +246,7 @@ end
 ---@param model string|nil
 ---@return Media.Transcript
 function M.from_json(doc, model)
-  local segments = {}
-  local entries = type(doc.segments) == "table" and doc.segments or {}
-  for i, entry in ipairs(entries) do
-    segments[i] = {
-      s = tonumber(entry.start) or 0,
-      e = tonumber(entry["end"]) or 0,
-      text = type(entry.text) == "string" and vim.trim(entry.text) or "",
-    }
-  end
-
-  return {
-    engine = M.id,
-    model = model,
-    lang = type(doc.language) == "string" and doc.language or nil,
-    duration = nil,
-    segments = segments,
-    text = require("media.core.segments").to_text(segments),
-  }
-end
-
---- The child's environment: ffmpeg's directory in front of PATH when
---- `core.bin` resolved it to an absolute path, and UTF-8 stdio so a
---- non-ASCII file name in whisper's own messages cannot crash Python's
---- console encoding on Windows.
----@return table<string, string>
-local function child_env()
-  local env = { PYTHONIOENCODING = "utf-8", PYTHONUTF8 = "1" }
-  local ffmpeg = require("media.core.bin").find("ffmpeg")
-  if ffmpeg and ffmpeg:find("[/\\]") then
-    local dir = vim.fs.dirname(ffmpeg)
-    local sep = vim.fn.has("win32") == 1 and ";" or ":"
-    env.PATH = dir .. sep .. (os.getenv("PATH") or "")
-  end
-  return env
-end
-
----@param dir string
-local function remove_dir(dir)
-  local handle = uv.fs_scandir(dir)
-  if handle then
-    while true do
-      local entry = uv.fs_scandir_next(handle)
-      if not entry then break end
-      os.remove(dir .. "/" .. entry)
-    end
-  end
-  uv.fs_rmdir(dir)
+  return require("media.engines.whisper_cli").to_transcript(doc, M.id, model)
 end
 
 --- Transcribe `wav_path`.
@@ -302,97 +256,42 @@ end
 ---@return Media.Engine.Job
 function M.transcribe(wav_path, opts, callback)
   opts = opts or {}
-  local cfg = require("media.config").get().transcribe
-  local own = cfg.openai_whisper or {}
-
-  local cancelled = false
-  ---@type vim.SystemObj|nil
-  local proc = nil
-  local job = {
-    cancel = function()
-      cancelled = true
-      if proc then
-        pcall(function()
-          require("media.core.proc").stop(proc)
-        end)
-        proc = nil
-      end
-    end,
-  }
-
-  ---@param transcript Media.Transcript|nil
-  ---@param err string|nil
-  local function finish(transcript, err)
-    if cancelled then return end
-    callback(transcript, err)
-  end
+  local cli = require("media.engines.whisper_cli")
+  local own = require("media.config").get().transcribe.openai_whisper or {}
 
   local bin = require("media.core.bin").find("whisper")
   if not bin then
-    vim.schedule(function()
-      finish(nil, "whisper not found — `pip install openai-whisper`, or set `bin.whisper`")
-    end)
-    return job
+    return cli.fail(
+      "whisper not found — `pip install openai-whisper`, or set `bin.whisper`",
+      callback
+    )
   end
 
   local model, merr = M.resolve_model(opts.model)
-  if not model then
-    vim.schedule(function()
-      finish(nil, merr)
-    end)
-    return job
-  end
+  if not model then return cli.fail(merr or "openai-whisper: no usable model", callback) end
 
-  -- A private directory per call, for the reason `whisper_cpp` uses a
-  -- private prefix: two concurrent runs on the same WAV would otherwise
-  -- write, read and delete the same `<basename>.json`.
-  local out_dir = vim.fn.tempname()
-  vim.fn.mkdir(out_dir, "p")
-  local stem = vim.fn.fnamemodify(wav_path, ":t:r")
-  local json_path = out_dir .. "/" .. stem .. ".json"
-
-  local argv = M.args({
-    bin = bin,
+  return cli.run({
     wav_path = wav_path,
-    model = model,
-    out_dir = out_dir,
-    lang = opts.lang,
-    translate = opts.task == "translate",
-    model_dir = (type(own.model_dir) == "string" and own.model_dir ~= "") and own.model_dir or nil,
-    device = (type(own.device) == "string" and own.device ~= "") and own.device or nil,
-  })
-
-  -- `0` means "no timeout", passed as `nil` — see `whisper_cpp.transcribe`.
-  local timeout = (cfg.timeout_ms and cfg.timeout_ms > 0) and cfg.timeout_ms or nil
-
-  proc = vim.system(argv, { text = true, timeout = timeout, env = child_env() }, function(result)
-    proc = nil
-    local fd = io.open(json_path, "r")
-    if result.code ~= 0 or not fd then
-      if fd then fd:close() end
-      remove_dir(out_dir)
-      local reason = M.failure_reason(result.stdout, result.stderr)
-      if not reason then
-        reason = result.code ~= 0 and ("whisper exited with " .. tostring(result.code))
-          or ("whisper wrote no JSON: " .. json_path)
-      end
-      finish(nil, reason)
-      return
-    end
-    local content = fd:read("*a")
-    fd:close()
-    remove_dir(out_dir)
-
-    local ok, doc = pcall(vim.json.decode, content)
-    if not ok or type(doc) ~= "table" then
-      finish(nil, "whisper's JSON output could not be read")
-      return
-    end
-
-    finish(M.from_json(doc, model), nil)
-  end)
-
-  return job
+    label = "whisper",
+    env = cli.child_env(true),
+    failure_reason = M.failure_reason,
+    parse = function(doc)
+      return M.from_json(doc, model)
+    end,
+    argv = function(out_dir)
+      return M.args({
+        bin = bin,
+        wav_path = wav_path,
+        model = model,
+        out_dir = out_dir,
+        lang = opts.lang,
+        translate = opts.task == "translate",
+        model_dir = (type(own.model_dir) == "string" and own.model_dir ~= "") and own.model_dir
+          or nil,
+        device = (type(own.device) == "string" and own.device ~= "") and own.device or nil,
+      })
+    end,
+  }, callback)
 end
 
 return M

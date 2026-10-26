@@ -30,6 +30,9 @@ return {
     --- transcription engine. Besides PATH and the installer shims, `core.bin`
     --- also looks in Python's own `Scripts` directories for it.
     whisper = nil,
+    --- faster-whisper's CLI (`pip install whisper-ctranslate2`), found the
+    --- same way as `whisper`.
+    ["whisper-ctranslate2"] = nil,
   },
 
   --- Hard ceiling on any one `ffmpeg`/`ffprobe` run, in milliseconds.
@@ -149,8 +152,9 @@ return {
   },
 
   --- Turning speech into text — the transcription half of this plugin
-  --- (ROADMAP.md's "Transcription" section). Two engines (`whisper_cpp`,
-  --- `openai_whisper`), four output modes including SRT and VTT.
+  --- (ROADMAP.md's "Transcription" section). Three engines (`whisper_cpp`,
+  --- `faster_whisper`, `openai_whisper`), four output modes including SRT and
+  --- VTT.
   transcribe = {
     --- Which registered engine `media.transcribe` tries first, or `"auto"`:
     --- the first engine in `auto` that is installed *and* has a usable model
@@ -160,10 +164,11 @@ return {
     ---@type string
     engine = "auto",
 
-    --- The order `engine = "auto"` tries. whisper.cpp first: no Python, and
-    --- several times faster than the PyTorch reference on a CPU.
+    --- The order `engine = "auto"` tries: fastest on a CPU first. whisper.cpp
+    --- needs no Python; faster-whisper (CTranslate2) is close behind it;
+    --- openai-whisper, the PyTorch reference, is the slowest of the three.
     ---@type string[]
-    auto = { "whisper_cpp", "openai_whisper" },
+    auto = { "whisper_cpp", "faster_whisper", "openai_whisper" },
 
     --- Tried in order after `engine` (or after `auto`'s list), when it
     --- reports itself unavailable.
@@ -232,6 +237,30 @@ return {
       --- directory of `model` above. `nil` means only that directory.
       ---@type string|nil
       model_dir = nil,
+    },
+
+    faster_whisper = {
+      --- Model name (or a converted CTranslate2 model directory) when neither
+      --- the call nor `transcribe.model` names one. `nil` means `"small"`, the
+      --- CLI's own default.
+      ---@type string|nil
+      model = nil,
+
+      --- The CLI's `--model_dir`: the Hugging Face cache it downloads into.
+      --- `nil` is huggingface_hub's own: `$HF_HUB_CACHE`,
+      --- `$HUGGINGFACE_HUB_CACHE`, then `<HF home>/hub` with the HF home
+      --- `$HF_HOME`, `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`.
+      ---@type string|nil
+      model_dir = nil,
+
+      --- The CLI's `--device` (`"cpu"`, `"cuda"`, `"auto"`). `nil` is `auto`.
+      ---@type string|nil
+      device = nil,
+
+      --- Same rule as `openai_whisper.allow_download`; `false` also passes
+      --- `--local_files_only True`, so the tool itself refuses to fetch.
+      ---@type boolean
+      allow_download = false,
     },
 
     openai_whisper = {

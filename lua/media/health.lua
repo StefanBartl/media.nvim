@@ -218,6 +218,28 @@ function M.check()
     )
   end
 
+  local faster = require("media.engines.faster_whisper")
+  local faster_bin = require("media.core.bin").find("whisper-ctranslate2")
+  if faster_bin then
+    h_ok("whisper-ctranslate2 (faster-whisper) found: " .. faster_bin)
+    local cache = faster.cache_dir()
+    local present = faster.cached_models()
+    if #present > 0 then
+      h_ok(("faster-whisper models in %s: %s"):format(cache, table.concat(present, ", ")))
+    else
+      h_info("no faster-whisper model downloaded yet (" .. cache .. ")")
+    end
+    local derr = faster.device_error()
+    if derr then h_warn(derr) end
+    local _, faster_err = faster.resolve_model(tcfg.model)
+    if faster_err then h_info(faster_err) end
+  else
+    h_info(
+      "whisper-ctranslate2 (faster-whisper) not found — `pip install whisper-ctranslate2` "
+        .. 'for the fastest Python engine, or set `bin["whisper-ctranslate2"]`'
+    )
+  end
+
   if tcfg.engine == "auto" then
     local chosen, why = require("media.core.resolver").resolve("auto", { model = tcfg.model })
     if chosen then

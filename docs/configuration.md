@@ -5,14 +5,17 @@ to be useful on its own.
 
 ```lua
 require("media").setup({
-  bin = { ffmpeg = nil, ffprobe = nil, mpv = nil, ["whisper-cli"] = nil, whisper = nil },
+  bin = {
+    ffmpeg = nil, ffprobe = nil, mpv = nil,
+    ["whisper-cli"] = nil, ["whisper-ctranslate2"] = nil, whisper = nil,
+  },
   timeout_ms = 15000,
   frame = { at = "10%", width = 800 },
   sheet = { rows = 3, cols = 4, width = 1200, margin = 4, timeout_ms = 120000 },
   waveform = { width = 1200, height = 300, colors = "#9cdcfe", timeout_ms = 120000 },
   transcribe = {
     engine = "auto",
-    auto = { "whisper_cpp", "openai_whisper" },
+    auto = { "whisper_cpp", "faster_whisper", "openai_whisper" },
     fallback = {},
     lang = nil,
     model = nil,
@@ -22,6 +25,7 @@ require("media").setup({
     timeout_ms = 0,
     normalize_timeout_ms = 120000,
     whisper_cpp = { model = nil, model_dir = nil },
+    faster_whisper = { model = nil, model_dir = nil, device = nil, allow_download = false },
     openai_whisper = { model = nil, model_dir = nil, device = nil, allow_download = false },
   },
   cache = { enabled = true, dir = nil, max_age_days = 30, max_mb = 2048 },
@@ -51,11 +55,12 @@ the summary.
 | `bin.mpv` | `string\|nil` | `nil` |
 | `bin["whisper-cli"]` | `string\|nil` | `nil` |
 | `bin.whisper` | `string\|nil` | `nil` |
+| `bin["whisper-ctranslate2"]` | `string\|nil` | `nil` |
 
 An explicit path, for the case where the binary is installed but not on PATH.
 The plugin probes winget's and scoop's shim directories, chocolatey's `bin`,
 `C:/ffmpeg/bin`, `/opt/homebrew/bin` and `/usr/local/bin` by itself — and, for
-openai-whisper's `whisper`, the active venv (`$VIRTUAL_ENV`) or conda
+openai-whisper's `whisper` and faster-whisper's `whisper-ctranslate2`, the active venv (`$VIRTUAL_ENV`) or conda
 environment (`$CONDA_PREFIX`) first, then Python's own `Scripts` directories
 (`%LOCALAPPDATA%/Programs/Python/Python3xx`, `%APPDATA%/Python/Python3xx`,
 newest first, and the Microsoft Store Python's), `~/.local/bin` (pipx), and a
@@ -225,7 +230,7 @@ Without lib.nvim installed there is no indicator and the command says
 | Key | Type | Default |
 | --- | --- | --- |
 | `transcribe.engine` | `string` | `"auto"` |
-| `transcribe.auto` | `string[]` | `{ "whisper_cpp", "openai_whisper" }` |
+| `transcribe.auto` | `string[]` | `{ "whisper_cpp", "faster_whisper", "openai_whisper" }` |
 | `transcribe.fallback` | `string[]` | `{}` |
 | `transcribe.lang` | `string\|nil` | `nil` — let the engine detect it |
 | `transcribe.model` | `string\|nil` | `nil` — each engine's own default |
@@ -236,13 +241,18 @@ Without lib.nvim installed there is no indicator and the command says
 | `transcribe.normalize_timeout_ms` | `integer` | `120000` |
 | `transcribe.whisper_cpp.model` | `string\|nil` | `nil` |
 | `transcribe.whisper_cpp.model_dir` | `string\|nil` | `nil` |
+| `transcribe.faster_whisper.model` | `string\|nil` | `nil` — `"small"` |
+| `transcribe.faster_whisper.model_dir` | `string\|nil` | `nil` — `~/.cache/huggingface/hub` |
+| `transcribe.faster_whisper.device` | `string\|nil` | `nil` — `auto` |
+| `transcribe.faster_whisper.allow_download` | `boolean` | `false` |
 | `transcribe.openai_whisper.model` | `string\|nil` | `nil` — `"turbo"` |
 | `transcribe.openai_whisper.model_dir` | `string\|nil` | `nil` — `~/.cache/whisper` |
 | `transcribe.openai_whisper.device` | `string\|nil` | `nil` — CUDA when PyTorch sees one |
 | `transcribe.openai_whisper.allow_download` | `boolean` | `false` |
 
-Two engines: `whisper_cpp` (whisper.cpp's `whisper-cli`) and
-`openai_whisper` (OpenAI's `whisper`, `pip install openai-whisper`).
+Three engines: `whisper_cpp` (whisper.cpp's `whisper-cli`),
+`faster_whisper` (`whisper-ctranslate2`, `pip install whisper-ctranslate2`)
+and `openai_whisper` (OpenAI's `whisper`, `pip install openai-whisper`).
 `engine = "auto"` — the default — takes the first engine in `auto` that is
 installed *and* has a usable model, so installing either one is enough;
 name an engine instead to always use that one. `fallback` is tried after
@@ -295,8 +305,23 @@ that was cut off leaves a file whose checksum whisper rejects, and whisper
 then fetches it again regardless of this setting — delete the file to be
 sure. A misspelt name (`meduim`) is reported as unknown, not as missing.
 
-`turbo`, the default model, was not trained for `task = "translate"` and
-mostly hands back the source language; use `medium` or `large-v3` for that.
+faster-whisper follows the same rule against the Hugging Face cache
+(`models--Systran--faster-whisper-<name>` and the like); with
+`faster_whisper.allow_download = false` it is also started with
+`--local_files_only True`, so the tool itself refuses to fetch. Its `model`
+takes the CLI's names — including the distilled `distil-large-v3` — or a
+directory holding a converted CTranslate2 model (`model.bin`).
+
+`turbo` (openai-whisper's default, and available to faster-whisper too) was
+not trained for `task = "translate"` and mostly hands back the source
+language; use `medium` or `large-v3` for that.
+
+faster-whisper's cache is huggingface_hub's own unless `model_dir` is set:
+`$HF_HUB_CACHE`, `$HUGGINGFACE_HUB_CACHE`, then `<HF home>/hub` with the HF
+home `$HF_HOME`, `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`. A
+model only counts as downloaded when a snapshot with `model.bin` is there —
+a download that was cut off does not. `device` takes the CLI's own choices,
+`auto`, `cpu` or `cuda`.
 
 `"translate"` asks the engine for its own translate task, which only ever
 produces **English**. Every other target language is

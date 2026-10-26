@@ -1,7 +1,7 @@
 ---@module 'media.engines'
 ---@brief Loads and registers every built-in transcription engine.
 ---@description
---- Two entries today (`whisper_cpp`, `openai_whisper`); `faster_whisper`,
+--- Three entries today (`whisper_cpp`, `faster_whisper`, `openai_whisper`);
 --- `openai_api` and `custom` join this list in a later phase (ROADMAP.md).
 --- The order here is the registry's order, which `:Media engines` lists.
 --- Idempotent and cheap to call more than once — `media.setup()` calls it
@@ -15,6 +15,7 @@ local M = {}
 ---@type string[]
 local BUILTIN = {
   "media.engines.whisper_cpp",
+  "media.engines.faster_whisper",
   "media.engines.openai_whisper",
 }
 

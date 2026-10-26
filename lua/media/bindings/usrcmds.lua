@@ -714,7 +714,7 @@ function M.register()
           {
             key = "engine",
             type = "STRING",
-            desc = "Transcription engine to try first (whisper_cpp, openai_whisper, auto)",
+            desc = "Transcription engine to try first (whisper_cpp, faster_whisper, openai_whisper, auto)",
           },
           {
             key = "lang",

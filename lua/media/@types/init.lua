@@ -36,6 +36,7 @@
 ---@field mpv string|nil
 ---@field ["whisper-cli"] string|nil  # `media.core.bin.find("whisper-cli")` reads this key
 ---@field whisper string|nil  # openai-whisper's CLI
+---@field ["whisper-ctranslate2"] string|nil  # faster-whisper's CLI
 
 ---@class Media.Config.Frame
 ---@field at number|string  # seconds, or a percentage of the duration ("10%")
@@ -66,11 +67,18 @@
 ---@field timeout_ms integer  # 0 = no timeout
 ---@field normalize_timeout_ms integer
 ---@field whisper_cpp Media.Config.Transcribe.WhisperCpp
+---@field faster_whisper Media.Config.Transcribe.FasterWhisper
 ---@field openai_whisper Media.Config.Transcribe.OpenAIWhisper
 
 ---@class Media.Config.Transcribe.WhisperCpp
 ---@field model string|nil  # absolute path to a GGML .bin model file
 ---@field model_dir string|nil  # where `model = "<name>"` finds `ggml-<name>.bin`
+
+---@class Media.Config.Transcribe.FasterWhisper
+---@field model string|nil  # model name or a CTranslate2 model directory; nil = "small"
+---@field model_dir string|nil  # the CLI's `--model_dir` (Hugging Face cache)
+---@field device string|nil  # the CLI's `--device`
+---@field allow_download boolean  # let the CLI fetch a missing model
 
 ---@class Media.Config.Transcribe.OpenAIWhisper
 ---@field model string|nil  # model name or `.pt` path; nil = "turbo"
@@ -146,6 +154,7 @@
 ---@field mpv? string
 ---@field ["whisper-cli"]? string
 ---@field whisper? string
+---@field ["whisper-ctranslate2"]? string
 
 ---@class Media.Opts.Frame
 ---@field at? number|string
@@ -176,11 +185,18 @@
 ---@field timeout_ms? integer
 ---@field normalize_timeout_ms? integer
 ---@field whisper_cpp? Media.Opts.Transcribe.WhisperCpp
+---@field faster_whisper? Media.Opts.Transcribe.FasterWhisper
 ---@field openai_whisper? Media.Opts.Transcribe.OpenAIWhisper
 
 ---@class Media.Opts.Transcribe.WhisperCpp
 ---@field model? string
 ---@field model_dir? string
+
+---@class Media.Opts.Transcribe.FasterWhisper
+---@field model? string
+---@field model_dir? string
+---@field device? string
+---@field allow_download? boolean
 
 ---@class Media.Opts.Transcribe.OpenAIWhisper
 ---@field model? string

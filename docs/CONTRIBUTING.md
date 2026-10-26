@@ -32,6 +32,8 @@ lua/media/
   engines/
     init.lua            -- loads and registers every built-in transcription engine
     whisper_cpp.lua     -- local transcription via whisper.cpp's `whisper-cli`
+    whisper_cli.lua     -- what the two Python CLIs share: one run, one JSON file
+    faster_whisper.lua  -- local transcription via faster-whisper's `whisper-ctranslate2`
     openai_whisper.lua  -- local transcription via OpenAI's `whisper` (PyTorch)
   output/
     init.lua            -- delivering a finished transcript: buffer | sidecar | srt | vtt

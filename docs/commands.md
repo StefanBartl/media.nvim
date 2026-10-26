@@ -248,7 +248,7 @@ not work worth doing.
 | --- | --- | --- |
 | image | `images.ocr.run` | tesseract, through images.nvim |
 | pdf | `pdfport.extract` | whichever of pdfport's backends can read it |
-| audio, video | this plugin's own dispatcher | whisper.cpp or openai-whisper (`transcribe.engine`) |
+| audio, video | this plugin's own dispatcher | whisper.cpp, faster-whisper or openai-whisper (`transcribe.engine`) |
 | anything else | nothing — it says so | — |
 
 `out=` is the same argument `:Media transcribe` takes, but **the modes on
@@ -290,7 +290,7 @@ runs it through the resolved engine, and delivers the result.
 
 | Argument | Takes | Default |
 | --- | --- | --- |
-| `engine=` | `whisper_cpp`, `openai_whisper`, or `auto` — the first engine that is installed *and* has a usable model | `transcribe.engine` (`auto`) |
+| `engine=` | `whisper_cpp`, `faster_whisper`, `openai_whisper`, or `auto` — the first engine that is installed *and* has a usable model | `transcribe.engine` (`auto`) |
 | `lang=` | a code (`de`), a region tag (`de-AT`), a name (`german`, `deutsch`, `Französisch`), or `auto` to detect it even when `transcribe.lang` is set | `transcribe.lang` |
 | `model=` | a size name — `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, `medium.en`, … — or a path to a model file | `transcribe.model`, then the engine's own |
 | `task=` | `transcribe` (keep the source language) or `translate` (the engine's own English-only translate) | `transcribe.task` |
@@ -300,8 +300,10 @@ runs it through the resolved engine, and delivers the result.
 `lang=` is normalized once, before anything runs — `deutsch`, `German` and
 `de-AT` all reach the engine as `de`, and a word it does not know fails at
 once instead of after the WAV extraction. `model=` is a *name* for
-openai-whisper, which it passes straight through, and becomes
-`ggml-<name>.bin` for whisper.cpp, looked up in
+openai-whisper, which it passes straight through; for faster-whisper too,
+except that `large` becomes `large-v3` (its CLI has no plain `large`) and a
+path means a *directory* holding a converted CTranslate2 model (`model.bin`);
+for whisper.cpp it becomes `ggml-<name>.bin`, looked up in
 `transcribe.whisper_cpp.model_dir` and beside `transcribe.whisper_cpp.model`.
 
 ### The engines
@@ -309,10 +311,11 @@ openai-whisper, which it passes straight through, and becomes
 | Engine | Tool | Model |
 | --- | --- | --- |
 | `whisper_cpp` | whisper.cpp's `whisper-cli` — no Python, the fastest on a CPU | a GGML `.bin` file you downloaded yourself |
-| `openai_whisper` | OpenAI's `whisper` (`pip install openai-whisper`) | a name; whisper downloads it on first use, which this plugin only allows with `transcribe.openai_whisper.allow_download = true` |
+| `faster_whisper` | faster-whisper's `whisper-ctranslate2` (`pip install whisper-ctranslate2`) — CTranslate2, several times faster than openai-whisper on a CPU, no ffmpeg needed | a name (also `distil-large-v3`, …) or a CTranslate2 model directory; fetched from Hugging Face only with `transcribe.faster_whisper.allow_download = true` |
+| `openai_whisper` | OpenAI's `whisper` (`pip install openai-whisper`) — the PyTorch reference, the slowest | a name; whisper downloads it on first use, which this plugin only allows with `transcribe.openai_whisper.allow_download = true` |
 
 `engine=auto` (the default) tries `transcribe.auto` in order —
-`{ "whisper_cpp", "openai_whisper" }` — and takes the first one that can
+`{ "whisper_cpp", "faster_whisper", "openai_whisper" }`, fastest first — and takes the first one that can
 actually run: a whisper.cpp with no model, or an openai-whisper whose model
 is not downloaded while downloads are off, is passed over. When nothing is
 ready the error names each engine and why. A *named* engine is never passed
@@ -350,8 +353,9 @@ its own, and a figure derived from the audio duration would be calibrated to
 whichever machine, model and thread count measured it. A wrong percentage is
 worse than none, because it is the one a reader plans around.
 
-Needs one ready engine: `whisper-cli` plus a GGML model, or `whisper` plus a
-downloaded (or allowed-to-download) model — `:checkhealth media` says which
+Needs one ready engine: `whisper-cli` plus a GGML model, or
+`whisper-ctranslate2`/`whisper` plus a downloaded (or allowed-to-download)
+model — `:checkhealth media` says which
 is missing and what `auto` would pick. Cached the same way every other
 rendering here is, keyed by the source file's mtime plus the
 engine/language/task/model that produced it — an edited file, a different

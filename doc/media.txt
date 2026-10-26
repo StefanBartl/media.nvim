@@ -146,7 +146,8 @@ before you press one.
 :Media transcribe [path] [engine=] [lang=] [model=] [task=] [out=]
                         Speech to text: probe, extract a 16 kHz mono WAV,
                         run it through the resolved engine, deliver it.
-                        `engine=` is whisper_cpp, openai_whisper or auto
+                        `engine=` is whisper_cpp, faster_whisper,
+                        openai_whisper or auto
                         (the first one installed and with a usable model).
                         `lang=` takes a code (de), a region tag (de-AT), a
                         name (german, deutsch) or auto. `model=` is a size
@@ -160,7 +161,7 @@ before you press one.
                         An unknown `out=` is rejected before the run
                         starts, not after minutes of waiting.
                         Needs one ready engine: `whisper-cli` plus a GGML
-                        model, or openai-whisper's `whisper` plus a
+                        model, or `whisper-ctranslate2` / `whisper` plus a
                         downloaded model (or `allow_download`). Nothing is
                         installed or downloaded unasked; `:checkhealth
                         media` says what is missing.
@@ -208,7 +209,8 @@ Rebind or disable individually through `keymaps` — see
 >lua
     require("media").setup({
       bin = { ffmpeg = nil, ffprobe = nil, mpv = nil,
-              ["whisper-cli"] = nil, whisper = nil },
+              ["whisper-cli"] = nil, whisper = nil,
+              ["whisper-ctranslate2"] = nil },
       timeout_ms = 15000,
       frame = { at = "10%", width = 800 },
       sheet = { rows = 3, cols = 4, width = 1200, margin = 4,
@@ -216,11 +218,14 @@ Rebind or disable individually through `keymaps` — see
       waveform = { width = 1200, height = 300, colors = "#9cdcfe",
                    timeout_ms = 120000 },
       transcribe = {
-        engine = "auto", auto = { "whisper_cpp", "openai_whisper" },
+        engine = "auto", auto = { "whisper_cpp", "faster_whisper",
+                                   "openai_whisper" },
         fallback = {}, lang = nil, model = nil,
         task = "transcribe", output = "buffer", cache = true,  -- buffer|sidecar|srt|vtt
         timeout_ms = 0, normalize_timeout_ms = 120000,
         whisper_cpp = { model = nil, model_dir = nil },
+        faster_whisper = { model = nil, model_dir = nil, device = nil,
+                           allow_download = false },
         openai_whisper = { model = nil, model_dir = nil, device = nil,
                            allow_download = false },
       },

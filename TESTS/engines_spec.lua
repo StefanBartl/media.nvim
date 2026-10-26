@@ -31,7 +31,8 @@ return function(H)
 
   -- Every built-in engine satisfies what `registry.register` asserts, plus
   -- the optional `ready` that `engine = "auto"` asks.
-  for _, id in ipairs({ "whisper_cpp", "openai_whisper" }) do
+  H.ok(registry.has("faster_whisper"), "the built-in faster_whisper engine is registered")
+  for _, id in ipairs({ "whisper_cpp", "faster_whisper", "openai_whisper" }) do
     local engine = registry.get(id)
     H.eq(type(engine.ready), "function", id .. " answers `ready`")
     H.eq(type(engine.capabilities), "table", id .. " declares its capabilities")

@@ -9,7 +9,8 @@
 | `ffmpeg` + `ffprobe` | required — one install, both binaries |
 | `mpv` | optional — sound for a played run, and `:Media window` / `media.play_window()` |
 | [whisper.cpp](https://github.com/ggml-org/whisper.cpp)'s `whisper-cli` + a GGML model | optional — `media.transcribe()` / `:Media transcribe` |
-| **or** [openai-whisper](https://github.com/openai/whisper)'s `whisper` | optional — the same, through PyTorch; either engine is enough |
+| **or** [faster-whisper](https://github.com/SYSTRAN/faster-whisper)'s `whisper-ctranslate2` | optional — the same, through CTranslate2; the faster of the two Python engines |
+| **or** [openai-whisper](https://github.com/openai/whisper)'s `whisper` | optional — the same, through PyTorch; any one engine is enough |
 
 Every place this plugin reaches for lib.nvim falls back to a plain Neovim
 equivalent when it is missing (`:checkhealth media` reports this under
@@ -37,18 +38,25 @@ it; `bin["whisper-cli"]` only if the binary lands off PATH. Neither the
 binary nor a model is ever fetched by this plugin — `:checkhealth media`
 reports what is missing.
 
-openai-whisper is the alternative when building whisper.cpp is not an option:
+faster-whisper and openai-whisper are the alternatives when building
+whisper.cpp is not an option — faster-whisper is several times quicker on a
+CPU and needs no ffmpeg of its own:
 
 ```bash
+pip install -U whisper-ctranslate2  # faster-whisper; or: pipx install whisper-ctranslate2
 pip install -U openai-whisper       # or: pipx install openai-whisper
 brew install openai-whisper         # macOS
 ```
+
+Both fetch models on first use; the plugin refuses that until you set
+`transcribe.faster_whisper.allow_download` / `transcribe.openai_whisper.allow_download`
+to `true`. The paragraph below is about openai-whisper.
 
 It needs ffmpeg on PATH, which this plugin arranges for the process it
 starts, and it fetches a model by name the first time it is used. The plugin
 refuses that until you set `transcribe.openai_whisper.allow_download = true`,
 or until you have run `whisper --model <name>` once yourself. With the default
-`transcribe.engine = "auto"`, whichever of the two engines is ready gets used.
+`transcribe.engine = "auto"`, the fastest engine that is ready gets used.
 
 After a Windows install, restart the terminal: winget and scoop extend the *user*
 PATH, and every already-running process inherited its copy at login. The plugin

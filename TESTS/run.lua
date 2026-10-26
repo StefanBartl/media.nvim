@@ -38,6 +38,7 @@ local specs = {
   "normalize_args_spec.lua",
   "whisper_cpp_spec.lua",
   "openai_whisper_spec.lua",
+  "faster_whisper_spec.lua",
   "lang_spec.lua",
   "hub_kinds_spec.lua",
   "hub_scan_spec.lua",

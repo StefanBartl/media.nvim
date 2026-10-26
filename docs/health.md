@@ -57,11 +57,17 @@ before this existed.
 | `whisper.cpp model: <path>` | `transcribe.whisper_cpp.model` is set and the file exists |
 | `transcribe.whisper_cpp.model is set but the file does not exist` | a typo, or a model that was moved or never downloaded |
 | `no whisper.cpp model configured` | set `transcribe.whisper_cpp.model` to a GGML `.bin` file — never fetched automatically |
-| `whisper (openai-whisper) found: <path>` | the second engine is installed |
+| `whisper (openai-whisper) found: <path>` | the PyTorch engine is installed |
 | `openai-whisper models in <dir>: <files>` | the checkpoints already downloaded — a run with one of these needs no network |
 | `no openai-whisper model downloaded yet` | the first run fetches one, but only with `transcribe.openai_whisper.allow_download = true` |
 | `openai-whisper model "<name>" is not downloaded yet` | the model a run would use right now is missing and downloads are off |
 | `whisper (openai-whisper) not found` | `pip install openai-whisper`, or `bin.whisper` |
+| `whisper-ctranslate2 (faster-whisper) found: <path>` | the faster Python engine is installed |
+| `faster-whisper models in <dir>: <names>` | the models completely in the Hugging Face cache (a snapshot with `model.bin`) |
+| `no faster-whisper model downloaded yet` | its first run fetches one, but only with `transcribe.faster_whisper.allow_download = true` |
+| `faster-whisper model "<name>" is not downloaded yet` | the model a run would use right now is missing (or only partly downloaded) and downloads are off |
+| `transcribe.faster_whisper.device must be one of auto, cpu, cuda` | a torch device name (`cuda:0`, `mps`) this CLI does not accept |
+| `whisper-ctranslate2 (faster-whisper) not found` | `pip install whisper-ctranslate2`, or `bin["whisper-ctranslate2"]` |
 | `engine = "auto" → <id>` | the engine a `:Media transcribe` with no `engine=` would use |
 | `engine = "auto": nothing ready yet — …` | every engine, with the reason it cannot run |
 
