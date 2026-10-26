@@ -8,7 +8,7 @@
 --- the one process that produces a still had no home.
 ---
 --- This is that home, and it is deliberately the same shape as
---- [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim): an external
+--- [pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim): an external
 --- toolchain, wrapped once, exposed as two verbs, consumed by anything that
 --- wants them. `images.nvim` says of PDFs that it *"draws pictures; it does not
 --- read PDFs, and it does not want to"* — the same sentence, with "videos" in

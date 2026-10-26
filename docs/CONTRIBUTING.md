@@ -67,7 +67,7 @@ bash scripts/test.sh                  # every spec under TESTS/
 bash scripts/test.sh --file config    # only spec files whose name contains "config"
 ```
 
-The specs run on [testing.nvim](https://github.com/StefanBartl/testing.nvim) with
+The specs run on [testing.nvim](https://github.com/WKDSteve/testing.nvim) with
 the project's own `TESTS/harness.lua` (dialect `h`, see `.testing.lua`). The script
 looks for testing.nvim and lib.nvim in `$TESTING_NVIM_DIR` / `$LIB_NVIM_DIR`,
 `.deps/<name>`, a sibling checkout, and `stdpath('data')/lazy/<name>`, and fails

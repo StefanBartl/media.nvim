@@ -371,7 +371,7 @@ engine/language/task/model that produced it — an edited file, a different
 engine, language or model each get their own entry.
 
 Every other target language than English goes through
-[language.nvim](https://github.com/StefanBartl/language.nvim) afterwards,
+[language.nvim](https://github.com/WKDSteve/language.nvim) afterwards,
 not through this command — see ROADMAP.md's "Transcription" section for why
 that split is where the capability actually lives, not a preference.
 

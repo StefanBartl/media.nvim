@@ -49,7 +49,7 @@ and would be the right tool — measured 2026-08-05, on Windows in WezTerm nothi
 sent from inside Neovim renders through it at all.
 
 What does move the line is a consumer that draws *text*.
-[hover.nvim](https://github.com/StefanBartl/hover.nvim) asks for a run of stills
+[hover.nvim](https://github.com/WKDSteve/hover.nvim) asks for a run of stills
 through `media.frames()` and paints them as coloured blocks — which collide with
 no graphics protocol and survive every redraw — with sound from the mpv this
 plugin drives over its JSON IPC socket. It is smooth on a fast terminal; where

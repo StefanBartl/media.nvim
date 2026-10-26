@@ -325,7 +325,7 @@ a download that was cut off does not. `device` takes the CLI's own choices,
 
 `"translate"` asks the engine for its own translate task, which only ever
 produces **English**. Every other target language is
-[language.nvim](https://github.com/StefanBartl/language.nvim)'s job,
+[language.nvim](https://github.com/WKDSteve/language.nvim)'s job,
 downstream of this plugin, not a `task` value here.
 
 ## `cache`

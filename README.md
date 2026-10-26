@@ -19,10 +19,10 @@
 [![Lua](https://img.shields.io/badge/Lua-5.1%2FLuaJIT-2C2D72?logo=lua&logoColor=white)](https://www.lua.org)
 ![Status](https://img.shields.io/badge/status-beta-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
-[![CI](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanBartl/media.nvim/actions/workflows/ci.yml)
-[![wkd](https://img.shields.io/badge/wkd-family-c6ff3d)](https://stefanbartl.github.io/wkd/p/media/)
+[![CI](https://github.com/WKDSteve/media.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/WKDSteve/media.nvim/actions/workflows/ci.yml)
+[![wkd](https://img.shields.io/badge/wkd-family-c6ff3d)](https://wkdsteve.github.io/wkd/p/media/)
 
-> Part of the [wkd](https://stefanbartl.github.io/wkd/) family — see this plugin's [page](https://stefanbartl.github.io/wkd/p/media/) on the site.
+> Part of the [wkd](https://wkdsteve.github.io/wkd/) family — see this plugin's [page](https://wkdsteve.github.io/wkd/p/media/) on the site.
 
 **What is in this media file, one picture of it, and — a video or an audio
 file's speech, turned into text.** `ffprobe` says how long, how big and in
@@ -42,21 +42,21 @@ when there is none it opens the dashboard.
 
 ## Around it
 
-> **[images.nvim](https://github.com/StefanBartl/images.nvim)** — draws the PNGs
+> **[images.nvim](https://github.com/WKDSteve/images.nvim)** — draws the PNGs
 > this produces, in the terminal, over OSC 1337. It reads no media formats and
 > does not want to; this plugin is the other half of that division.
 >
-> **[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim)** — the same
+> **[pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim)** — the same
 > shape for PDFs: an external toolchain wrapped once, exposed as verbs, consumed
 > by anything that wants them. It was the structural template for this
 > repository.
 >
-> **[hover.nvim](https://github.com/StefanBartl/hover.nvim)** — the first
+> **[hover.nvim](https://github.com/WKDSteve/hover.nvim)** — the first
 > consumer: a `.mp4` path under the cursor opens a float with the poster frame
 > in it, in the video's own aspect ratio.
 >
 > All of the above are soft, and so is
-> [lib.nvim](https://github.com/StefanBartl/lib.nvim) — every place that uses
+> [lib.nvim](https://github.com/WKDSteve/lib.nvim) — every place that uses
 > it falls back to a plain Neovim equivalent, `:checkhealth media` included.
 > It is the one worth having anyway: without it `:Media` loses tab
 > completion, the float dashboard becomes a `vim.notify` list, and a
@@ -88,7 +88,7 @@ question each page answers.
 - [Lua API](docs/api.md) — the surface another plugin consumes.
 - [Health check](docs/health.md) — what `:checkhealth media` reports, line by line.
 - [Contributing](docs/CONTRIBUTING.md)
-- [Feedback](https://github.com/StefanBartl/media.nvim/issues)
+- [Feedback](https://github.com/WKDSteve/media.nvim/issues)
 
 `:help media` is the same reference inside the editor.
 

@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | Neovim | **0.10+** (`vim.system`, `vim.uv`) |
-| [lib.nvim](https://github.com/StefanBartl/lib.nvim) | recommended — soft dependency, see below |
+| [lib.nvim](https://github.com/WKDSteve/lib.nvim) | recommended — soft dependency, see below |
 | `ffmpeg` + `ffprobe` | required — one install, both binaries |
 | `mpv` | optional — sound for a played run, and `:Media window` / `media.play_window()` |
 | [whisper.cpp](https://github.com/ggml-org/whisper.cpp)'s `whisper-cli` + a GGML model | optional — `media.transcribe()` / `:Media transcribe` |
@@ -70,8 +70,8 @@ notice — but `:checkhealth media` is the way to be sure.
 
 ```lua
 {
-  "StefanBartl/media.nvim",
-  dependencies = { "StefanBartl/lib.nvim" },
+  "WKDSteve/media.nvim",
+  dependencies = { "WKDSteve/lib.nvim" },
   event = "VeryLazy",
   opts = {},
 }
@@ -92,8 +92,8 @@ everything comes from `setup()`, which `opts = {}` runs for you.
 
 ```lua
 use({
-  "StefanBartl/media.nvim",
-  requires = { "StefanBartl/lib.nvim" },
+  "WKDSteve/media.nvim",
+  requires = { "WKDSteve/lib.nvim" },
   config = function()
     require("media").setup()
   end,
@@ -103,7 +103,7 @@ use({
 ## Without a plugin manager
 
 ```bash
-git clone https://github.com/StefanBartl/media.nvim \
+git clone https://github.com/WKDSteve/media.nvim \
   ~/.local/share/nvim/site/pack/plugins/start/media.nvim
 ```
 

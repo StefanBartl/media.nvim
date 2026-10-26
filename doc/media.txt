@@ -42,8 +42,8 @@ handing them to an external viewer.
 
 >lua
     {
-      "StefanBartl/media.nvim",
-      dependencies = { "StefanBartl/lib.nvim" },
+      "WKDSteve/media.nvim",
+      dependencies = { "WKDSteve/lib.nvim" },
       event = "VeryLazy",
       opts = {},
     }
