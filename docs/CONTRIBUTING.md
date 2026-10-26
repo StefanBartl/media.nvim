@@ -84,6 +84,24 @@ fixes the order (testing.nvim reads its list). If you add a spec, add its filena
 there too; `smoke_spec.lua` stays last, because it calls `setup()` and the specs before it assert against a state
 where that has not happened.
 
+### Live runs of a transcription engine
+
+The specs drive every engine through a fake `vim.system`, which cannot catch
+what only the real tool does (a JSON shape it never documented, a failure on
+a stream nobody expected, a DLL it loads from PATH). A change to an engine is
+done after one real run:
+
+```bash
+nvim --headless -u NONE -l scripts/live-transcribe.lua talk.m4a engine=faster_whisper lang=auto model=small
+```
+
+It prints each engine's availability and readiness (with the reason), what the
+request resolves to, the phases as they start, and the transcript with its
+engine, model, detected language, segment count and wall time; exit 1 on an
+error. The cache is always off. Bin paths and `allow_download=true` are
+`key=value` arguments too — see the script header. Never part of `test.sh`:
+it needs the real tools and, the first time, a model download.
+
 ## Ground rules
 
 - **A new external binary needs a reason no existing one covers.** ImageMagick,
